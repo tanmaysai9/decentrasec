@@ -1,0 +1,34 @@
+node_modules/
+dist/
+.env
+venv/
+__pycache__/
+*.pyc
+
+# Runtime data (keep dir structure, exclude contents)
+data/manifests.json
+data/encrypted/*
+data/satellite/raw/*
+data/satellite/blobs/*
+data/satellite/catalog.json
+
+# Old benchmark artifacts
+bench_data/
+bench_results/
+results.md
+
+# Build output (rebuilt on remote)
+backend/static/
+
+# DMaya runtime extras (not needed, 500MB+)
+backend/crypto/DMaya1.7/ForTesting/
+backend/crypto/DMaya1.7/ForTesting.zip
+backend/crypto/DMaya1.7/ForTesting/Linux.zip
+backend/crypto/DMaya1.7/*.ilk
+backend/crypto/DMaya1.7/*.obj
+
+# OS/editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
