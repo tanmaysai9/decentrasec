@@ -92,7 +92,7 @@ export default function ArchiveTable() {
             <tr className="text-left text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
               <th className="pb-3 pr-4">File</th>
               <th className="pb-3 pr-4">Size</th>
-              <th className="pb-3 pr-4">Key Shares</th>
+              <th className="pb-3 pr-4">NLSS Shares</th>
               <th className="pb-3 pr-4">Nodes</th>
               <th className="pb-3 pr-4">Upload</th>
               <th className="pb-3 pr-4">Reconstruct</th>

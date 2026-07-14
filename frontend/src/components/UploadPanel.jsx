@@ -151,9 +151,9 @@ export default function UploadPanel() {
         <div>
           <label className="text-sm font-medium text-gray-600 block mb-1">Protection</label>
           <div className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-700">
-            Secure Distribution
+            Non-Linear Secret Sharing (NLSS)
           </div>
-          <p className="mt-1 text-xs text-gray-400">Your image is protected and distributed across storage nodes.</p>
+          <p className="mt-1 text-xs text-gray-400">Image is encrypted and its key is split into NLSS shares distributed across storage nodes.</p>
         </div>
 
         {message && (

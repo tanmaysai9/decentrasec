@@ -1,5 +1,38 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { reconstructSatelliteImage } from "../api/client";
+
+function NoiseImage({ seed, size = 42, grayscale = false }) {
+  const dataUrl = useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = size;
+    c.height = size;
+    const ctx = c.getContext("2d");
+    const imgData = ctx.createImageData(size, size);
+    let s = ((seed || 1) * 2654435761) >>> 0;
+    for (let i = 0; i < imgData.data.length; i += 4) {
+      s = (s * 1103515245 + 12345) >>> 0;
+      const r = s & 0xff;
+      const g = grayscale ? r : (s >> 8) & 0xff;
+      const b = grayscale ? r : (s >> 16) & 0xff;
+      imgData.data[i] = r;
+      imgData.data[i + 1] = g;
+      imgData.data[i + 2] = b;
+      imgData.data[i + 3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+    return c.toDataURL();
+  }, [seed, size, grayscale]);
+
+  return (
+    <img
+      src={dataUrl}
+      alt="noise"
+      className="rounded border border-gray-200 shrink-0"
+      style={{ width: size, height: size }}
+      title="Decoy noise"
+    />
+  );
+}
 
 const SENSOR_COLORS = {
   "S1-SAR": { bg: "bg-blue-100", text: "text-blue-700", border: "border-blue-200" },
@@ -10,16 +43,20 @@ const SENSOR_COLORS = {
 
 function EssentialCell({ share }) {
   if (!share) return <td className="sat-cell sat-cell-essential"><span className="text-gray-300 text-lg">—</span></td>;
+  const seed = (share.hex_prefix || "0000").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
   return (
     <td className="sat-cell sat-cell-essential">
-      <div className="flex flex-col gap-1.5 items-center">
-        <span className="font-mono text-lg text-gray-600">0x{share.hex_prefix}</span>
-        <span className="text-sm font-bold text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1 rounded">
-          ESSENTIAL
-        </span>
-        {share.node && (
-          <span className="font-mono text-sm text-amber-500">{share.node}</span>
-        )}
+      <div className="flex items-center gap-2">
+        <NoiseImage seed={seed} size={42} grayscale />
+        <div className="flex flex-col gap-1.5 items-center">
+          <span className="font-mono text-base text-gray-600">0x{share.hex_prefix}</span>
+          <span className="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+            ESSENTIAL
+          </span>
+          {share.node && (
+            <span className="font-mono text-sm text-amber-500">{share.node}</span>
+          )}
+        </div>
       </div>
     </td>
   );
@@ -27,18 +64,22 @@ function EssentialCell({ share }) {
 
 function ShareCell({ share }) {
   if (!share) return <td className="sat-cell sat-cell-share"><span className="text-gray-300 text-lg">—</span></td>;
+  const seed = (share.cid || share.node || "42").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
   return (
     <td className="sat-cell sat-cell-share">
-      <div className="flex flex-col gap-1 items-start">
-        <span className="font-mono text-base text-gray-700 font-semibold">
-          {share.node || "—"}
-        </span>
-        <span className="font-mono text-sm text-gray-500">
-          {share.node_ip || "—"}
-        </span>
-        <span className="font-mono text-base text-gray-500">
-          {share.cid ? `${share.cid.slice(0, 16)}...` : ""}
-        </span>
+      <div className="flex items-start gap-2">
+        <NoiseImage seed={seed} size={42} />
+        <div className="flex flex-col gap-1 items-start">
+          <span className="font-mono text-base text-gray-700 font-semibold">
+            {share.node || "—"}
+          </span>
+          <span className="font-mono text-sm text-gray-500">
+            {share.node_ip || "—"}
+          </span>
+          <span className="font-mono text-sm text-gray-400">
+            {share.cid ? `${share.cid.slice(0, 16)}...` : ""}
+          </span>
+        </div>
       </div>
     </td>
   );
@@ -131,7 +172,7 @@ function ReconstructModal({ image, reconstructedPng, shareDetails, durationMs, s
                       <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
                         <td className="px-5 py-3">
                           <span className={`font-medium text-lg ${s.node === "LOCAL" ? "text-amber-600" : "text-gray-600"}`}>
-                            {i === 0 ? "Essential (local)" : `Piece ${i}`}
+                            {i === 0 ? "Essential (local)" : `NLSS Piece ${i}`}
                           </span>
                         </td>
                         <td className="px-5 py-3">
@@ -329,7 +370,7 @@ export default function SatelliteTable() {
                 {Array.from({ length: maxShares }).map((_, idx) => (
                   <th key={idx} className="sat-header-cell sat-cell-share">
                     <div className="flex flex-col items-start">
-                      <span className="text-base text-gray-400 font-normal">Key Share {idx + 1}</span>
+                      <span className="text-base text-gray-400 font-normal">NLSS Share {idx + 1}</span>
                     </div>
                   </th>
                 ))}
