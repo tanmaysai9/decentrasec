@@ -16,6 +16,25 @@ _DMaya_DIR = (
 )
 
 
+def _ensure_base64_wrapper():
+    """On Linux, DMaya calls 'base64 -c' but system base64 doesn't support -c.
+    Create a wrapper script that runs the bundled base64.exe via mono."""
+    if not _USE_MONO:
+        return
+    wrapper = os.path.join(_DMaya_DIR, "base64")
+    b64_exe = os.path.join(_DMaya_DIR, "base64.exe")
+    if not os.path.isfile(b64_exe):
+        return
+    if not os.path.isfile(wrapper):
+        with open(wrapper, "w") as f:
+            f.write("#!/bin/bash\n")
+            f.write(f'exec mono "{b64_exe}" "$@"\n')
+        os.chmod(wrapper, 0o755)
+
+
+_ensure_base64_wrapper()
+
+
 def _find_binary(name):
     for d in [_DMaya_DIR, _DIR]:
         for n in [name, name + ".exe"]:
@@ -29,7 +48,8 @@ def _find_binary(name):
 
 def _env_with_dmaya():
     env = os.environ.copy()
-    env["PATH"] = _DMaya_DIR + os.pathsep + env.get("PATH", "")
+    paths = [_DMaya_DIR, "."]
+    env["PATH"] = os.pathsep.join(paths) + os.pathsep + env.get("PATH", "")
     return env
 
 
@@ -38,6 +58,12 @@ def _copy_runtime(src_dir, dest_dir):
         src = os.path.join(src_dir, fname)
         if os.path.isfile(src):
             shutil.copy2(src, os.path.join(dest_dir, fname))
+    if _USE_MONO:
+        wrapper_src = os.path.join(src_dir, "base64")
+        wrapper_dst = os.path.join(dest_dir, "base64")
+        if os.path.isfile(wrapper_src):
+            shutil.copy2(wrapper_src, wrapper_dst)
+            os.chmod(wrapper_dst, 0o755)
 
 
 def encrypt(data: bytes, file_name: str) -> dict:
