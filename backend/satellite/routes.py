@@ -17,8 +17,8 @@ logger = logging.getLogger("satellite")
 @router.get("/status")
 async def status():
     catalog = get_catalog()
-    if not catalog:
-        return {"ready": False, "message": "Run setup first"}
+    if not catalog or "images" not in catalog:
+        return {"ready": False, "message": "Upload an image to get started", "total": 0, "processed": 0, "dataset": ""}
     n_ipfs = sum(1 for img in catalog["images"] if img.get("ipfs_ready"))
     return {
         "ready": n_ipfs == catalog["total"],
@@ -31,8 +31,13 @@ async def status():
 @router.get("/catalog")
 async def catalog():
     cat = get_catalog()
-    if not cat:
-        raise HTTPException(503, "Catalog not ready. Run setup first.")
+    if not cat or "images" not in cat:
+        return {
+            "dataset": "No data yet",
+            "total": 0,
+            "nodes": {name: NODE_IPS[name] for name in NODE_NAMES},
+            "images": [],
+        }
 
     images = []
     for img in cat["images"]:

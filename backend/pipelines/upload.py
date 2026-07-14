@@ -70,7 +70,12 @@ def _add_to_satellite_catalog(manifest, all_shares_meta):
 
         if CATALOG_FILE.exists():
             catalog = json.loads(CATALOG_FILE.read_text(encoding="utf-8"))
+            if "images" not in catalog:
+                catalog = {}
         else:
+            catalog = {}
+
+        if not catalog:
             catalog = {"dataset": "User Uploads", "mode": "key", "total": 0, "images": []}
 
         essential_meta = all_shares_meta[0] if all_shares_meta else {}
@@ -175,8 +180,9 @@ async def _run_upload_inner(upload_id, file_bytes, file_name, owner_address):
             upload_id, "distribute", 3,
             {"nodes": dict(nodes), "current_node": node_name, "nodes_completed": idx},
         )
+        safe_name = rel_path.replace("/", "_")
         cid = await upload_to_node(
-            node_name, share_data, f"key_{rel_path}"
+            node_name, share_data, f"key_{safe_name}"
         )
         nodes[node_name] = {"cid": cid, "status": "ok"}
         share_entries.append({

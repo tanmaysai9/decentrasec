@@ -137,7 +137,8 @@ async def _process_image(img_id, item, raw_bytes):
         node = NODE_NAMES[s_idx % len(NODE_NAMES)]
         print(f" {node}...", end=" ", flush=True)
         try:
-            cid = await _upload_share(node, share_data, f"key_{img_id}_{rel_path}")
+            safe_name = rel_path.replace("/", "_")
+            cid = await _upload_share(node, share_data, f"key_{img_id}_{safe_name}")
         except Exception as e:
             print(f"\n    [WARN] IPFS upload failed share {s_idx}: {e}")
             hash_input = f"{img_id}-{s_idx}".encode()
