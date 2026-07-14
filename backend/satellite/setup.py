@@ -106,25 +106,25 @@ def _discover_items(sync_client):
 
 
 async def _process_image(img_id, item, raw_bytes):
-    """Key-mode pipeline: encrypt image (local blob) + split key into shares."""
+    """Key-mode pipeline: encrypt image (local blob) + split key."""
     raw_path = RAW_DIR / f"{img_id}.tif"
     raw_path.write_bytes(raw_bytes)
     thumb_b64 = _make_thumbnail(raw_bytes)
 
-    blob, all_shares = keymode.encrypt_image(raw_bytes)
+    blob, essential_files, key_shares = keymode.encrypt_image(raw_bytes)
 
     BLOB_DIR.mkdir(parents=True, exist_ok=True)
     blob_path = BLOB_DIR / f"{img_id}.bin"
     blob_path.write_bytes(blob)
 
-    essential_data = all_shares[0][1] if all_shares else b""
-    essential_rel = all_shares[0][0] if all_shares else ""
+    essential_rel = list(essential_files.keys())[0] if essential_files else ""
+    essential_data = list(essential_files.values())[0] if essential_files else b""
 
     essential = {
         "index": 0,
         "hex_prefix": essential_data[:4].hex().upper() if essential_data else "",
         "rel_path": essential_rel,
-        "node": "",
+        "node": "LOCAL",
         "node_ip": "",
         "cid": "",
         "size": len(essential_data),
@@ -132,7 +132,6 @@ async def _process_image(img_id, item, raw_bytes):
     }
 
     shares_meta = []
-    key_shares = all_shares[1:] if len(all_shares) > 1 else []
     for s_idx, (rel_path, share_data) in enumerate(key_shares):
         node = NODE_NAMES[s_idx % len(NODE_NAMES)]
         print(f" {node}...", end=" ", flush=True)
@@ -162,6 +161,8 @@ async def _process_image(img_id, item, raw_bytes):
         "thumbnail": thumb_b64,
         "essential_share": essential,
         "shares": shares_meta,
+        "key_index": {rel: base64.b64encode(data).decode("ascii")
+                      for rel, data in essential_files.items()},
     }
 
 

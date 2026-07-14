@@ -1,3 +1,4 @@
+import base64
 import time
 from pathlib import Path
 
@@ -32,17 +33,26 @@ async def _reconstruct(manifest):
     t_start = time.monotonic()
 
     all_shares = {}
+
+    essential_b64 = manifest.get("key_index", {})
+    for rel_path, b64_data in essential_b64.items():
+        all_shares[rel_path] = base64.b64decode(b64_data)
+
     for entry in manifest["key_shares"]:
         data = await _fetch_share(entry)
         all_shares[entry["rel_path"]] = data
 
     if not all_shares:
-        raise ValueError("No key shares found in manifest")
+        raise ValueError("No shares found in manifest")
 
     key = dmaya_mod.decrypt(all_shares, KEY_FILE)
 
     if len(key) == 0:
-        raise ValueError("Key reconstruction returned empty (0 bytes). Check DMaya binary and mono runtime.")
+        raise ValueError(
+            f"Key reconstruction returned 0 bytes. "
+            f"Shares available: {len(all_shares)}. "
+            f"Check DMaya binary and mono runtime."
+        )
 
     blob_path = Path(manifest["blob_path"])
     if not blob_path.exists():

@@ -42,7 +42,9 @@ async def reconstruct_image(img_id):
     blob = blob_path.read_bytes()
     t_blob = round((time.monotonic() - t0) * 1000)
 
-    index_files = {}
+    essential_files = {
+        rel: base64.b64decode(b) for rel, b in entry.get("key_index", {}).items()
+    }
 
     t1 = time.monotonic()
     key_shares_fetched = {}
@@ -50,7 +52,7 @@ async def reconstruct_image(img_id):
         cid = s["cid"]
         node_name = s.get("node")
         try:
-            if node_name:
+            if node_name and node_name != "LOCAL":
                 data = await fetch_from_node(node_name, cid)
             else:
                 data = await fetch_bytes(cid)
@@ -60,7 +62,7 @@ async def reconstruct_image(img_id):
     t_ipfs_get = round((time.monotonic() - t1) * 1000)
 
     t2 = time.monotonic()
-    raw_bytes = keymode.decrypt_image(blob, key_shares_fetched)
+    raw_bytes = keymode.decrypt_image(blob, essential_files, key_shares_fetched)
     t_decrypt = round((time.monotonic() - t2) * 1000)
 
     duration_ms = round((time.monotonic() - t0) * 1000)

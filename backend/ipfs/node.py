@@ -28,13 +28,16 @@ async def upload_to_node(node_name: str, data: bytes, filename: str = "share") -
             files={"file": (filename, data, "application/octet-stream")},
         )
         resp.raise_for_status()
+        last_hash = None
         for line in resp.text.strip().splitlines():
             try:
                 obj = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if obj.get("Hash") and obj.get("Name") and obj["Name"] != "":
-                return obj["Hash"]
+            if obj.get("Hash"):
+                last_hash = obj["Hash"]
+        if last_hash:
+            return last_hash
         raise ValueError(f"No Hash in response from {node_name}: {resp.text[:200]}")
 
 
