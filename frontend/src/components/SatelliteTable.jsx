@@ -144,7 +144,7 @@ function ReconstructModal({ image, reconstructedPng, shareDetails, durationMs, s
                       <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
                         <td className="px-5 py-3">
                           <span className={`font-medium text-lg ${s.node === "LOCAL" ? "text-amber-600" : "text-gray-600"}`}>
-                            {i === 0 ? "Essential Share (local)" : `Key Share ${i}`}
+                            {i === 0 ? "Essential (local)" : `Piece ${i}`}
                           </span>
                         </td>
                         <td className="px-5 py-3">
@@ -187,6 +187,7 @@ export default function SatelliteTable() {
   const [sortDir, setSortDir] = useState("asc");
   const [reconstructingId, setReconstructingId] = useState(null);
   const [modal, setModal] = useState(null);
+  const [largeThumb, setLargeThumb] = useState(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 300);
@@ -267,6 +268,7 @@ export default function SatelliteTable() {
     });
 
   const nodeEntries = Object.entries(nodes);
+  const maxShares = Math.max(1, ...images.map((img) => (img.shares?.length || 0)));
 
   return (
     <>
@@ -333,15 +335,15 @@ export default function SatelliteTable() {
                 </th>
                 <th className="sat-header-cell sat-header-essential" style={{ width: "150px" }}>
                   <div className="flex flex-col items-center">
-                    <span className="text-amber-600 font-semibold text-lg">Essential Share</span>
-                    <span className="text-base text-amber-500 font-normal normal-case tracking-normal">index.txt — Local</span>
+                    <span className="text-amber-600 font-semibold text-lg">Essential</span>
+                    <span className="text-base text-amber-500 font-normal normal-case tracking-normal">Local</span>
                   </div>
                 </th>
-                {nodeEntries.map(([name, ip], idx) => (
-                  <th key={name} className="sat-header-cell sat-cell-share">
+                {Array.from({ length: maxShares }).map((_, idx) => (
+                  <th key={idx} className="sat-header-cell sat-cell-share">
                     <div className="flex flex-col items-start">
-                      <span className="text-base text-gray-400 font-normal">Key Share {idx + 1}</span>
-                      <span className="font-mono text-lg text-gray-500">{ip}</span>
+                      <span className="text-base text-gray-400 font-normal">Piece {idx + 1}</span>
+                      <span className="font-mono text-lg text-gray-500">Distributed</span>
                     </div>
                   </th>
                 ))}
@@ -352,12 +354,10 @@ export default function SatelliteTable() {
             </thead>
             <tbody>
               {loading ? (
-                Array.from({ length: 10 }).map((_, i) => <SkeletonRow key={i} nNodes={nodeEntries.length} />)
+                Array.from({ length: 10 }).map((_, i) => <SkeletonRow key={i} nNodes={maxShares} />)
               ) : (
                 filtered.map((img) => {
                   const rowCls = img.index % 2 === 0 ? "sat-row-even" : "sat-row-odd";
-                  const sharesByNode = {};
-                  (img.shares || []).forEach((s) => { sharesByNode[s.node] = s; });
 
                   return (
                     <tr key={img.id} className={rowCls}>
@@ -365,7 +365,8 @@ export default function SatelliteTable() {
                         <img
                           src={`data:image/jpeg;base64,${img.thumbnail}`}
                           alt={img.id}
-                          className="w-24 h-24 object-cover border border-gray-100"
+                          className="w-24 h-24 object-cover border border-gray-100 cursor-pointer hover:opacity-70 transition-opacity"
+                          onClick={() => setLargeThumb(img.thumbnail)}
                         />
                       </td>
                       <td className="sat-cell">
@@ -374,8 +375,8 @@ export default function SatelliteTable() {
                       <td className="sat-cell sat-cell-essential">
                         <EssentialCell share={img.essential_share} />
                       </td>
-                      {nodeEntries.map(([name]) => (
-                        <ShareCell key={name} share={sharesByNode[name]} />
+                      {Array.from({ length: maxShares }).map((_, idx) => (
+                        <ShareCell key={idx} share={(img.shares || [])[idx]} />
                       ))}
                       <td className="sat-cell">
                         <button
@@ -417,6 +418,19 @@ export default function SatelliteTable() {
             setModal(null);
           }}
         />
+      )}
+
+      {largeThumb && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setLargeThumb(null)}
+        >
+          <img
+            src={`data:image/jpeg;base64,${largeThumb}`}
+            alt="Large preview"
+            className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl"
+          />
+        </div>
       )}
     </>
   );

@@ -75,7 +75,7 @@ async def thumbnail(file: UploadFile = File(...)):
         img = Image.open(io.BytesIO(chunk))
         if img.mode not in ("RGB", "RGBA", "L"):
             img = img.convert("RGB")
-        img.thumbnail((128, 128))
+        img.thumbnail((256, 256))
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=60)
         thumb_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
@@ -133,11 +133,7 @@ async def archive(address: str = Depends(_get_address)):
                 "file_name": m.get("file_name", ""),
                 "original_size": m.get("original_size", 0),
                 "total_shares_n": m.get("total_shares_n", len(m.get("key_shares", []))),
-                "mode": m.get("mode", "key"),
-                "threshold_k": m["threshold_k"],
-                "total_shares_n": m["total_shares_n"],
                 "merkle_root": m.get("merkle_root", ""),
-                "tx_hash": m.get("tx_hash", ""),
                 "owner_address": m.get("owner_address", ""),
                 "nodes": nodes,
                 "created_at": m.get("created_at", ""),
@@ -160,9 +156,13 @@ async def reconstruct(manifest_id: str, address: str = Depends(_get_address)):
     try:
         result = await reconstruct_by_id(manifest_id)
     except ValueError as e:
+        import logging
+        logging.getLogger("reconstruct").error("Reconstruct ValueError for %s: %s", manifest_id, e)
         raise HTTPException(422, str(e))
     except Exception as e:
-        raise HTTPException(502, f"IPFS error: {e}")
+        import logging
+        logging.getLogger("reconstruct").error("Reconstruct error for %s: %s", manifest_id, e, exc_info=True)
+        raise HTTPException(502, f"Reconstruction failed: {e}")
 
     return StreamingResponse(
         BytesIO(result["data"]),

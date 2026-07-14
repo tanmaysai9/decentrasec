@@ -36,7 +36,7 @@ def _classify(all_shares):
     return essential, shares
 
 
-def _generate_thumbnail(file_bytes, file_name, size=128):
+def _generate_thumbnail(file_bytes, file_name, size=256):
     try:
         ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
         if ext in ("tif", "tiff", "png", "jpg", "jpeg", "bmp", "webp", "gif"):

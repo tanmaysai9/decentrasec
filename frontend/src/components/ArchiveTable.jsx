@@ -76,7 +76,7 @@ export default function ArchiveTable() {
   if (archive.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center text-gray-400 text-sm">
-        No files in archive. Upload a file to encrypt and distribute its key.
+        No files yet. Upload an image to secure and distribute it.
       </div>
     );
   }
@@ -92,7 +92,7 @@ export default function ArchiveTable() {
             <tr className="text-left text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
               <th className="pb-3 pr-4">File</th>
               <th className="pb-3 pr-4">Size</th>
-              <th className="pb-3 pr-4">Shares</th>
+              <th className="pb-3 pr-4">Pieces</th>
               <th className="pb-3 pr-4">Nodes</th>
               <th className="pb-3 pr-4">Upload</th>
               <th className="pb-3 pr-4">Reconstruct</th>
@@ -117,7 +117,7 @@ export default function ArchiveTable() {
                 </td>
                 <td className="py-3 pr-4 text-gray-500 whitespace-nowrap">{formatSize(f.original_size)}</td>
                 <td className="py-3 pr-4">
-                  <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">{f.total_shares_n} shares</span>
+                  <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">{f.total_shares_n} pieces</span>
                 </td>
                 <td className="py-3 pr-4">
                   <div className="flex gap-1">

@@ -2,10 +2,10 @@ import useStore from "../store/useStore";
 
 const STAGES = [
   { key: "validate", label: "Validate" },
-  { key: "encrypt", label: "Encrypt" },
-  { key: "split", label: "Split" },
+  { key: "encrypt", label: "Protect" },
+  { key: "split", label: "Prepare" },
   { key: "distribute", label: "Distribute" },
-  { key: "anchor", label: "Anchor" },
+  { key: "anchor", label: "Confirm" },
 ];
 
 export default function PipelineStepper() {
