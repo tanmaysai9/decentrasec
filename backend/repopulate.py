@@ -134,9 +134,10 @@ async def main():
         print("  [x] blobs/ cleared (stale DMaya output)")
     CATALOG_FILE.write_text("{}", encoding="utf-8")
     print("  [x] catalog.json cleared")
-    mf = BASE / "manifests.json"
+    mf = BASE / "data" / "manifests.json"
+    mf.parent.mkdir(parents=True, exist_ok=True)
     mf.write_text("{}", encoding="utf-8")
-    print("  [x] manifests.json cleared")
+    print("  [x] data/manifests.json cleared")
 
     # 4. Re-process each image
     print(f"\n  Re-encrypting + NLSS splitting + uploading {len(raw_files)} images...\n")
@@ -154,11 +155,13 @@ async def main():
         print(f"  [{i+1}/{len(raw_files)}] {img_id} ({sensor} {season}) — "
               f"{len(raw_bytes):,}B — encrypt+split...", end=" ", flush=True)
 
+        img_t0 = time.time()
         try:
             proc = await _process_image(img_id, raw_bytes, meta)
         except Exception as e:
             print(f"FAILED ({e}), skipping...")
             continue
+        img_duration_ms = int((time.time() - img_t0) * 1000)
 
         now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         catalog_images.append({
@@ -193,13 +196,13 @@ async def main():
             "merkle_root": "",
             "tx_hash": "",
             "thumbnail": proc["thumbnail"],
-            "upload_duration_ms": None,
+            "upload_duration_ms": img_duration_ms,
             "stage_durations": {},
             "created_at": now_iso,
         }
 
         cids_short = [s["cid"][:8] + "..." for s in proc["shares"]]
-        print(f"done — {n_shares} shares: {', '.join(cids_short)}")
+        print(f"done ({img_duration_ms}ms) — {n_shares} shares: {', '.join(cids_short)}")
 
     # 5. Write fresh catalog
     catalog = {
@@ -212,7 +215,7 @@ async def main():
     CATALOG_FILE.write_text(json.dumps(catalog, indent=2), encoding="utf-8")
 
     # 6. Write manifest entries for archive history
-    mf = BASE / "manifests.json"
+    mf = BASE / "data" / "manifests.json"
     mf.write_text(json.dumps(manifest_entries, indent=2), encoding="utf-8")
     print(f"  Manifests: {mf} ({len(manifest_entries)} entries)")
 
