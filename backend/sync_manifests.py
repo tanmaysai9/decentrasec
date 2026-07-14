@@ -23,9 +23,7 @@ manifests = {}
 for i, img in enumerate(images):
     shares = img.get("shares", [])
     created = now - timedelta(minutes=i + 1)
-    import random
     size_mb = img.get("file_size", 0) / (1024 * 1024)
-    upload_ms = int(max(800, size_mb * 8 + random.randint(200, 1500)))
 
     manifests[img["id"]] = {
         "id": img["id"],
@@ -41,7 +39,7 @@ for i, img in enumerate(images):
         "merkle_root": "",
         "tx_hash": "",
         "thumbnail": img.get("thumbnail", ""),
-        "upload_duration_ms": upload_ms,
+        "upload_duration_ms": img.get("upload_duration_ms"),
         "stage_durations": {},
         "created_at": created.strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
