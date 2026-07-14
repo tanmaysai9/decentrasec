@@ -11,7 +11,7 @@ from pathlib import Path
 
 BASE = Path(__file__).parent
 CATALOG_FILE = BASE / "data" / "satellite" / "catalog.json"
-MANIFESTS_FILE = BASE / "manifests.json"
+MANIFESTS_FILE = BASE / "data" / "manifests.json"
 OWNER_ADDRESS = "0xA1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2"
 
 catalog = json.loads(CATALOG_FILE.read_text())
