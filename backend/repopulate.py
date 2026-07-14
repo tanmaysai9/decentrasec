@@ -32,6 +32,8 @@ from satellite import keymode
 from satellite.config import NODE_NAMES, NODE_IPS
 from ipfs.node import upload_to_node
 
+OWNER_ADDRESS = "0xA1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2"
+
 
 def _make_thumbnail(raw_bytes, size=56):
     img = Image.open(io.BytesIO(raw_bytes))
@@ -140,6 +142,7 @@ async def main():
     print(f"\n  Re-encrypting + NLSS splitting + uploading {len(raw_files)} images...\n")
     t0 = time.time()
     catalog_images = []
+    manifest_entries = {}
 
     for i, raw_path in enumerate(raw_files):
         img_id = raw_path.stem
@@ -157,6 +160,7 @@ async def main():
             print(f"FAILED ({e}), skipping...")
             continue
 
+        now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         catalog_images.append({
             "id": img_id,
             "index": i,
@@ -174,8 +178,28 @@ async def main():
             "ipfs_ready": True,
         })
 
+        n_shares = len(proc["shares"])
+        manifest_entries[img_id] = {
+            "id": img_id,
+            "file_name": f"{img_id}.tif",
+            "original_size": len(raw_bytes),
+            "mode": "key",
+            "threshold_k": n_shares,
+            "total_shares_n": n_shares,
+            "owner_address": OWNER_ADDRESS,
+            "blob_path": proc["blob_path"],
+            "key_shares": proc["shares"],
+            "key_index": proc["key_index"],
+            "merkle_root": "",
+            "tx_hash": "",
+            "thumbnail": proc["thumbnail"],
+            "upload_duration_ms": None,
+            "stage_durations": {},
+            "created_at": now_iso,
+        }
+
         cids_short = [s["cid"][:8] + "..." for s in proc["shares"]]
-        print(f"done — {len(proc['shares'])} shares: {', '.join(cids_short)}")
+        print(f"done — {n_shares} shares: {', '.join(cids_short)}")
 
     # 5. Write fresh catalog
     catalog = {
@@ -187,10 +211,16 @@ async def main():
     CATALOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     CATALOG_FILE.write_text(json.dumps(catalog, indent=2), encoding="utf-8")
 
+    # 6. Write manifest entries for archive history
+    mf = BASE / "manifests.json"
+    mf.write_text(json.dumps(manifest_entries, indent=2), encoding="utf-8")
+    print(f"  Manifests: {mf} ({len(manifest_entries)} entries)")
+
     elapsed = time.time() - t0
     print(f"\n  Repopulate complete in {elapsed:.1f}s")
     print(f"  Images:   {len(catalog_images)}")
     print(f"  Catalog:  {CATALOG_FILE}")
+    print(f"  Manifests: {len(manifest_entries)} entries")
     print("=" * 60)
 
 
