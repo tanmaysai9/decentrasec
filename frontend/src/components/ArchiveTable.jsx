@@ -92,7 +92,7 @@ export default function ArchiveTable() {
             <tr className="text-left text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
               <th className="pb-3 pr-4">File</th>
               <th className="pb-3 pr-4">Size</th>
-              <th className="pb-3 pr-4">Pieces</th>
+              <th className="pb-3 pr-4">Key Shares</th>
               <th className="pb-3 pr-4">Nodes</th>
               <th className="pb-3 pr-4">Upload</th>
               <th className="pb-3 pr-4">Reconstruct</th>
@@ -117,7 +117,7 @@ export default function ArchiveTable() {
                 </td>
                 <td className="py-3 pr-4 text-gray-500 whitespace-nowrap">{formatSize(f.original_size)}</td>
                 <td className="py-3 pr-4">
-                  <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">{f.total_shares_n} pieces</span>
+                  <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">{f.total_shares_n} shares</span>
                 </td>
                 <td className="py-3 pr-4">
                   <div className="flex gap-1">

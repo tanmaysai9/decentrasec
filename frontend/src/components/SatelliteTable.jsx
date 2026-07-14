@@ -10,23 +10,16 @@ const SENSOR_COLORS = {
 
 function EssentialCell({ share }) {
   if (!share) return <td className="sat-cell sat-cell-essential"><span className="text-gray-300 text-lg">—</span></td>;
-  const hasThumb = share.thumbnail && share.thumbnail.length > 0;
   return (
     <td className="sat-cell sat-cell-essential">
       <div className="flex flex-col gap-1.5 items-center">
-        {hasThumb ? (
-          <img
-            src={`data:image/png;base64,${share.thumbnail}`}
-            alt="essential share"
-            className="w-12 h-12 border border-amber-200 rounded"
-          />
-        ) : (
-          <span className="font-mono text-lg text-gray-600">0x{share.hex_prefix}</span>
-        )}
+        <span className="font-mono text-lg text-gray-600">0x{share.hex_prefix}</span>
         <span className="text-sm font-bold text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1 rounded">
           ESSENTIAL
         </span>
-        <span className="text-base text-amber-500 font-medium">stays with user</span>
+        {share.node && (
+          <span className="font-mono text-sm text-amber-500">{share.node}</span>
+        )}
       </div>
     </td>
   );
@@ -34,23 +27,17 @@ function EssentialCell({ share }) {
 
 function ShareCell({ share }) {
   if (!share) return <td className="sat-cell sat-cell-share"><span className="text-gray-300 text-lg">—</span></td>;
-  const hasThumb = share.thumbnail && share.thumbnail.length > 0;
   return (
     <td className="sat-cell sat-cell-share">
-      <div className="flex flex-col gap-1.5 items-start">
-        {hasThumb ? (
-          <img
-            src={`data:image/png;base64,${share.thumbnail}`}
-            alt={`share ${share.index}`}
-            className="w-12 h-12 border border-gray-200 rounded"
-          />
-        ) : (
-          <span className="font-mono text-lg text-gray-600 tracking-tight">
-            {share.cid.slice(0, 10)}...{share.cid.slice(-4)}
-          </span>
-        )}
+      <div className="flex flex-col gap-1 items-start">
+        <span className="font-mono text-base text-gray-700 font-semibold">
+          {share.node || "—"}
+        </span>
+        <span className="font-mono text-sm text-gray-500">
+          {share.node_ip || "—"}
+        </span>
         <span className="font-mono text-base text-gray-500">
-          {share.cid.slice(0, 16)}...
+          {share.cid ? `${share.cid.slice(0, 16)}...` : ""}
         </span>
       </div>
     </td>
@@ -342,8 +329,7 @@ export default function SatelliteTable() {
                 {Array.from({ length: maxShares }).map((_, idx) => (
                   <th key={idx} className="sat-header-cell sat-cell-share">
                     <div className="flex flex-col items-start">
-                      <span className="text-base text-gray-400 font-normal">Piece {idx + 1}</span>
-                      <span className="font-mono text-lg text-gray-500">Distributed</span>
+                      <span className="text-base text-gray-400 font-normal">Key Share {idx + 1}</span>
                     </div>
                   </th>
                 ))}

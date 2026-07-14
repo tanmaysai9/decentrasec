@@ -1,4 +1,3 @@
-import base64
 import time
 from pathlib import Path
 
@@ -33,18 +32,17 @@ async def _reconstruct(manifest):
     t_start = time.monotonic()
 
     all_shares = {}
-
-    essential_b64 = manifest.get("key_index", {})
-    for rel_path, b64_data in essential_b64.items():
-        all_shares[rel_path] = base64.b64decode(b64_data)
-
     for entry in manifest["key_shares"]:
-        all_shares[entry["rel_path"]] = await _fetch_share(entry)
+        data = await _fetch_share(entry)
+        all_shares[entry["rel_path"]] = data
 
     if not all_shares:
         raise ValueError("No key shares found in manifest")
 
     key = dmaya_mod.decrypt(all_shares, KEY_FILE)
+
+    if len(key) == 0:
+        raise ValueError("Key reconstruction returned empty (0 bytes). Check DMaya binary and mono runtime.")
 
     blob_path = Path(manifest["blob_path"])
     if not blob_path.exists():
@@ -60,14 +58,14 @@ async def _reconstruct(manifest):
             f"Integrity check failed: expected {expected_hash}, got {actual_hash}"
         )
 
-    shares_used = f"{manifest['threshold_k']}/{manifest['total_shares_n']}"
+    shares_used = f"{manifest.get('threshold_k', '?')}/{manifest.get('total_shares_n', '?')}"
     duration_ms = round((time.monotonic() - t_start) * 1000)
 
     return {
         "data": plaintext,
         "file_name": manifest["file_name"],
         "mime_type": manifest["mime_type"],
-        "merkle_root": manifest["merkle_root"],
+        "merkle_root": manifest.get("merkle_root", ""),
         "shares_used": shares_used,
         "reconstruct_duration_ms": duration_ms,
     }

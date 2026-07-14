@@ -23,19 +23,6 @@ _stage_timings: dict = {}
 KEY_FILE = "key.bin"
 
 
-def _classify(all_shares):
-    essential = {}
-    shares = []
-    for rel_path in sorted(all_shares.keys()):
-        fname = rel_path.rsplit("/", 1)[-1] if "/" in rel_path else rel_path
-        data = all_shares[rel_path]
-        if fname == "index.txt" or fname.endswith(".json") or fname.endswith(".txt"):
-            essential[rel_path] = data
-        else:
-            shares.append((rel_path, data))
-    return essential, shares
-
-
 def _generate_thumbnail(file_bytes, file_name, size=256):
     try:
         ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
@@ -47,7 +34,7 @@ def _generate_thumbnail(file_bytes, file_name, size=256):
             return None
         img.thumbnail((size, size))
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=60)
+        img.save(buf, format="JPEG", quality=70)
         return base64.b64encode(buf.getvalue()).decode("ascii")
     except Exception:
         return None
@@ -77,7 +64,7 @@ def _set_stage(upload_id, stage, stage_index, extra=None):
     _upload_status[upload_id] = entry
 
 
-def _add_to_satellite_catalog(manifest, essential_b64):
+def _add_to_satellite_catalog(manifest, all_shares_meta):
     try:
         from satellite.config import CATALOG_FILE
 
@@ -85,6 +72,9 @@ def _add_to_satellite_catalog(manifest, essential_b64):
             catalog = json.loads(CATALOG_FILE.read_text(encoding="utf-8"))
         else:
             catalog = {"dataset": "User Uploads", "mode": "key", "total": 0, "images": []}
+
+        essential_meta = all_shares_meta[0] if all_shares_meta else {}
+        key_share_metas = all_shares_meta[1:] if len(all_shares_meta) > 1 else []
 
         img_entry = {
             "id": manifest["id"],
@@ -100,25 +90,27 @@ def _add_to_satellite_catalog(manifest, essential_b64):
             "thumbnail": manifest.get("thumbnail", ""),
             "essential_share": {
                 "index": 0,
-                "hex_prefix": manifest["essential_share"]["hex_prefix"],
-                "rel_path": manifest["essential_share"]["rel_path"],
-                "size": manifest["essential_share"]["size"],
+                "hex_prefix": essential_meta.get("hex_prefix", ""),
+                "rel_path": essential_meta.get("rel_path", ""),
+                "node": essential_meta.get("node", ""),
+                "node_ip": essential_meta.get("node_ip", ""),
+                "cid": essential_meta.get("cid", ""),
+                "size": essential_meta.get("size", 0),
                 "thumbnail": "",
             },
             "shares": [
                 {
-                    "index": ks["index"],
-                    "node": ks["node"],
-                    "node_ip": ks["node_ip"],
-                    "rel_path": ks["rel_path"],
-                    "hex_prefix": ks.get("hex_prefix", ""),
-                    "cid": ks["cid"],
-                    "size": ks["size"],
+                    "index": s["index"],
+                    "node": s["node"],
+                    "node_ip": s["node_ip"],
+                    "rel_path": s["rel_path"],
+                    "hex_prefix": s.get("hex_prefix", ""),
+                    "cid": s["cid"],
+                    "size": s["size"],
                     "thumbnail": "",
                 }
-                for ks in manifest["key_shares"]
+                for s in key_share_metas
             ],
-            "key_index": essential_b64,
             "blob_path": manifest["blob_path"],
             "encrypted_size": manifest["encrypted_size"],
             "nlss_ready": True,
@@ -168,22 +160,15 @@ async def _run_upload_inner(upload_id, file_bytes, file_name, owner_address):
 
     _set_stage(upload_id, "split", 2, {"nodes": nodes})
     all_shares = dmaya_mod.encrypt(key, KEY_FILE)["shares"]
-    essential_files, key_shares = _classify(all_shares)
-
-    essential_rel = list(essential_files.keys())[0] if essential_files else ""
-    essential_data = list(essential_files.values())[0] if essential_files else b""
-    essential_b64 = {
-        rel: base64.b64encode(data).decode("ascii")
-        for rel, data in essential_files.items()
-    }
+    sorted_shares = sorted(all_shares.items())
 
     _set_stage(
         upload_id, "distribute", 3,
         {"nodes": nodes, "current_node": "", "nodes_completed": 0},
     )
 
-    key_entries = []
-    for idx, (rel_path, share_data) in enumerate(key_shares):
+    share_entries = []
+    for idx, (rel_path, share_data) in enumerate(sorted_shares):
         node_name = NODE_NAMES[idx % len(NODE_NAMES)]
         nodes[node_name] = {"cid": None, "status": "uploading", "ip": NODE_IPS[node_name]}
         _set_stage(
@@ -194,7 +179,7 @@ async def _run_upload_inner(upload_id, file_bytes, file_name, owner_address):
             node_name, share_data, f"key_{rel_path}"
         )
         nodes[node_name] = {"cid": cid, "status": "ok"}
-        key_entries.append({
+        share_entries.append({
             "index": idx,
             "node": node_name,
             "node_ip": NODE_IPS[node_name],
@@ -210,7 +195,7 @@ async def _run_upload_inner(upload_id, file_bytes, file_name, owner_address):
 
     _set_stage(upload_id, "anchor", 4, {"nodes": dict(nodes)})
 
-    merkle = mock_merkle_root([e["cid"] for e in key_entries])
+    merkle = mock_merkle_root([e["cid"] for e in share_entries])
     tx = mock_tx_hash(upload_id)
 
     mime_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
@@ -227,17 +212,11 @@ async def _run_upload_inner(upload_id, file_bytes, file_name, owner_address):
         "encrypted_size": len(blob),
         "mime_type": mime_type,
         "mode": "key",
-        "threshold_k": min(3, len(key_entries)),
-        "total_shares_n": len(key_entries),
+        "threshold_k": min(3, len(share_entries)),
+        "total_shares_n": len(share_entries),
         "sha256": file_hash,
         "blob_path": str(blob_path),
-        "essential_share": {
-            "rel_path": essential_rel,
-            "hex_prefix": essential_data[:4].hex().upper() if essential_data else "",
-            "size": len(essential_data),
-        },
-        "key_shares": key_entries,
-        "key_index": essential_b64,
+        "key_shares": share_entries,
         "merkle_root": merkle,
         "tx_hash": tx,
         "thumbnail": thumbnail_b64,
@@ -247,14 +226,14 @@ async def _run_upload_inner(upload_id, file_bytes, file_name, owner_address):
     }
 
     add_manifest(manifest)
-    _add_to_satellite_catalog(manifest, essential_b64)
+    _add_to_satellite_catalog(manifest, share_entries)
 
     _upload_status[upload_id] = {
         "stage": "done",
         "stage_index": 5,
         "stage_total": 5,
         "nodes": {
-            n: {"cid": nodes[n]["cid"], "status": "ok", "ip": NODE_IPS[n]}
+            n: {"cid": nodes[n].get("cid"), "status": nodes[n].get("status", "pending"), "ip": NODE_IPS[n]}
             for n in NODE_NAMES
         },
         "result": {"merkle_root": merkle, "tx_hash": tx},
