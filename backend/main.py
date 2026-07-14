@@ -130,9 +130,9 @@ async def archive(address: str = Depends(_get_address)):
         result.append(
             {
                 "id": m["id"],
-                "file_name": m["file_name"],
-                "original_size": m["original_size"],
-                "total_shares_n": m["total_shares_n"],
+                "file_name": m.get("file_name", ""),
+                "original_size": m.get("original_size", 0),
+                "total_shares_n": m.get("total_shares_n", len(m.get("key_shares", []))),
                 "mode": m.get("mode", "key"),
                 "threshold_k": m["threshold_k"],
                 "total_shares_n": m["total_shares_n"],
