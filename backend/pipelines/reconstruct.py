@@ -1,3 +1,4 @@
+import base64
 import gzip
 import time
 from pathlib import Path
@@ -9,7 +10,7 @@ from ipfs.gateway import fetch_bytes
 from ipfs.node import fetch_from_node
 from store import get_manifest
 
-DMAYA_KEY_FILE = "key.bin"
+KEY_FILE = "key.bin"
 
 
 async def _fetch_share(entry):
@@ -32,21 +33,26 @@ async def reconstruct_by_id(manifest_id):
 async def _reconstruct(manifest):
     t_start = time.monotonic()
 
-    key_shares = {}
+    all_shares = {}
+
+    key_index = manifest.get("key_index", {})
+    for rel_path, b64_data in key_index.items():
+        all_shares[rel_path] = base64.b64decode(b64_data)
+
     for entry in manifest["key_shares"]:
-        key_shares[entry["rel_path"]] = await _fetch_share(entry)
+        all_shares[entry["rel_path"]] = await _fetch_share(entry)
 
-    if not key_shares:
-        raise ValueError("DMaya: no key shares found in manifest")
+    if not all_shares:
+        raise ValueError("No key shares found in manifest")
 
-    aes_key = dmaya_mod.decrypt(key_shares, DMAYA_KEY_FILE)
+    key = dmaya_mod.decrypt(all_shares, KEY_FILE)
 
     blob_path = Path(manifest["blob_path"])
     if not blob_path.exists():
         raise ValueError(f"Ciphertext blob not found: {blob_path}")
     blob = blob_path.read_bytes()
 
-    compressed = aes_decrypt(blob, aes_key)
+    compressed = aes_decrypt(blob, key)
     plaintext = gzip.decompress(compressed)
 
     actual_hash = sha256(plaintext)

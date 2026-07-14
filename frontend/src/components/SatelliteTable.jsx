@@ -334,7 +334,7 @@ export default function SatelliteTable() {
                 <th className="sat-header-cell sat-header-essential" style={{ width: "150px" }}>
                   <div className="flex flex-col items-center">
                     <span className="text-amber-600 font-semibold text-lg">Ciphertext</span>
-                    <span className="text-base text-amber-500 font-normal normal-case tracking-normal">AES blob — Local</span>
+                    <span className="text-base text-amber-500 font-normal normal-case tracking-normal">Encrypted Data — Local</span>
                   </div>
                 </th>
                 {nodeEntries.map(([name, ip], idx) => (

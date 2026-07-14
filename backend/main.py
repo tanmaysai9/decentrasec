@@ -12,6 +12,8 @@ from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
+Image.MAX_IMAGE_PIXELS = None
+
 from config import CORS_ORIGINS, NODE_NAMES, NODE_IPS
 from auth import create_token, verify_token, MOCK_WALLETS
 from store import (
@@ -130,7 +132,7 @@ async def archive(address: str = Depends(_get_address)):
                 "id": m["id"],
                 "file_name": m["file_name"],
                 "original_size": m["original_size"],
-                "scheme": m["scheme"],
+                "total_shares_n": m["total_shares_n"],
                 "mode": m.get("mode", "key"),
                 "threshold_k": m["threshold_k"],
                 "total_shares_n": m["total_shares_n"],

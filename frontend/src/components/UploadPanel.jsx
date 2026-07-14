@@ -143,22 +143,11 @@ export default function UploadPanel() {
 
       <div className="space-y-3">
         <div>
-          <label className="text-sm font-medium text-gray-600 block mb-1">Algorithm</label>
+          <label className="text-sm font-medium text-gray-600 block mb-1">Encryption</label>
           <div className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-700">
-            AES-256-GCM + Non-Linear Secret Sharing (3-of-4)
+            Secure Encryption + Threshold Key Distribution
           </div>
-          <p className="mt-1 text-xs text-amber-600">Image is AES-encrypted (kept on server); only the 32-byte AES key is NLSS-split into 4 shares and sent to IPFS.</p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-sm font-medium text-gray-600 block mb-1">Threshold (K)</label>
-            <input type="number" value={3} disabled className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-400" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-600 block mb-1">Key Shares (N)</label>
-            <input type="number" value={4} disabled className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-400" />
-          </div>
+          <p className="mt-1 text-xs text-gray-400">Data is encrypted and kept locally; only threshold key shares are distributed to storage nodes.</p>
         </div>
       </div>
 
