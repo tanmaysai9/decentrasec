@@ -106,23 +106,25 @@ def _discover_items(sync_client):
 
 
 async def _process_image(img_id, item, raw_bytes):
-    """Key-mode pipeline: AES-encrypt image (local blob) + NLSS-split the AES key."""
+    """Key-mode pipeline: encrypt image (local blob) + split key into essential + key shares."""
     raw_path = RAW_DIR / f"{img_id}.tif"
     raw_path.write_bytes(raw_bytes)
     thumb_b64 = _make_thumbnail(raw_bytes)
 
-    blob, index_files, key_shares, comp_len = keymode.encrypt_image(raw_bytes)
+    blob, essential_files, key_shares = keymode.encrypt_image(raw_bytes)
 
     BLOB_DIR.mkdir(parents=True, exist_ok=True)
     blob_path = BLOB_DIR / f"{img_id}.bin"
     blob_path.write_bytes(blob)
 
+    essential_rel = list(essential_files.keys())[0] if essential_files else ""
+    essential_data = list(essential_files.values())[0] if essential_files else b""
+
     essential = {
         "index": 0,
-        "hex_prefix": blob[:4].hex().upper(),
-        "rel_path": f"{img_id}.bin",
-        "share_file": str(blob_path),
-        "size": len(blob),
+        "hex_prefix": essential_data[:4].hex().upper() if essential_data else "",
+        "rel_path": essential_rel,
+        "size": len(essential_data),
         "thumbnail": "",
     }
 
@@ -151,13 +153,12 @@ async def _process_image(img_id, item, raw_bytes):
     return {
         "raw_path": str(raw_path),
         "blob_path": str(blob_path),
-        "compressed_size": comp_len,
         "encrypted_size": len(blob),
         "thumbnail": thumb_b64,
         "essential_share": essential,
         "shares": shares_meta,
         "key_index": {rel: base64.b64encode(data).decode("ascii")
-                      for rel, data in index_files.items()},
+                      for rel, data in essential_files.items()},
     }
 
 

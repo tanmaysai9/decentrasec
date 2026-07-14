@@ -1,4 +1,3 @@
-import gzip
 import base64
 import io
 import json
@@ -25,16 +24,16 @@ KEY_FILE = "key.bin"
 
 
 def _classify(all_shares):
-    index_files = {}
+    essential = {}
     shares = []
     for rel_path in sorted(all_shares.keys()):
         fname = rel_path.rsplit("/", 1)[-1] if "/" in rel_path else rel_path
         data = all_shares[rel_path]
         if fname == "index.txt" or fname.endswith(".json") or fname.endswith(".txt"):
-            index_files[rel_path] = data
+            essential[rel_path] = data
         else:
             shares.append((rel_path, data))
-    return index_files, shares
+    return essential, shares
 
 
 def _generate_thumbnail(file_bytes, file_name, size=128):
@@ -69,7 +68,7 @@ def _set_stage(upload_id, stage, stage_index, extra=None):
     _stage_timings[upload_id]["_current"] = {"stage": stage, "start": now}
     entry["stage"] = stage
     entry["stage_index"] = stage_index
-    entry["stage_total"] = 6
+    entry["stage_total"] = 5
     entry["stage_durations"] = {
         k: v for k, v in _stage_timings.get(upload_id, {}).items() if k != "_current"
     }
@@ -78,10 +77,9 @@ def _set_stage(upload_id, stage, stage_index, extra=None):
     _upload_status[upload_id] = entry
 
 
-def _add_to_satellite_catalog(manifest, key_index_b64):
+def _add_to_satellite_catalog(manifest, essential_b64):
     try:
         from satellite.config import CATALOG_FILE
-        import math
 
         if CATALOG_FILE.exists():
             catalog = json.loads(CATALOG_FILE.read_text(encoding="utf-8"))
@@ -102,10 +100,9 @@ def _add_to_satellite_catalog(manifest, key_index_b64):
             "thumbnail": manifest.get("thumbnail", ""),
             "essential_share": {
                 "index": 0,
-                "hex_prefix": manifest.get("blob_hex_prefix", ""),
-                "rel_path": f'{manifest["id"]}.bin',
-                "share_file": manifest["blob_path"],
-                "size": manifest["encrypted_size"],
+                "hex_prefix": manifest["essential_share"]["hex_prefix"],
+                "rel_path": manifest["essential_share"]["rel_path"],
+                "size": manifest["essential_share"]["size"],
                 "thumbnail": "",
             },
             "shares": [
@@ -121,9 +118,8 @@ def _add_to_satellite_catalog(manifest, key_index_b64):
                 }
                 for ks in manifest["key_shares"]
             ],
-            "key_index": key_index_b64,
+            "key_index": essential_b64,
             "blob_path": manifest["blob_path"],
-            "compressed_size": manifest["compressed_size"],
             "encrypted_size": manifest["encrypted_size"],
             "nlss_ready": True,
             "ipfs_ready": True,
@@ -159,25 +155,30 @@ async def _run_upload_inner(upload_id, file_bytes, file_name, owner_address):
     if len(file_bytes) > MAX_FILE_SIZE_MB * 1024 * 1024:
         raise ValueError(f"File exceeds {MAX_FILE_SIZE_MB}MB limit.")
 
-    _set_stage(upload_id, "compress", 1, {"nodes": nodes})
-    compressed = gzip.compress(file_bytes, compresslevel=6)
+    _set_stage(upload_id, "encrypt", 1, {"nodes": nodes})
     file_hash = sha256(file_bytes)
     thumbnail_b64 = _generate_thumbnail(file_bytes, file_name)
 
-    _set_stage(upload_id, "encrypt", 2, {"nodes": nodes})
     key = generate_key()
-    blob = aes_encrypt(compressed, key)
+    blob = aes_encrypt(file_bytes, key)
 
     ENCRYPTED_DATA_DIR.mkdir(parents=True, exist_ok=True)
     blob_path = ENCRYPTED_DATA_DIR / f"{upload_id}.bin"
     blob_path.write_bytes(blob)
 
-    _set_stage(upload_id, "split", 3, {"nodes": nodes})
+    _set_stage(upload_id, "split", 2, {"nodes": nodes})
     all_shares = dmaya_mod.encrypt(key, KEY_FILE)["shares"]
-    index_files, key_shares = _classify(all_shares)
+    essential_files, key_shares = _classify(all_shares)
+
+    essential_rel = list(essential_files.keys())[0] if essential_files else ""
+    essential_data = list(essential_files.values())[0] if essential_files else b""
+    essential_b64 = {
+        rel: base64.b64encode(data).decode("ascii")
+        for rel, data in essential_files.items()
+    }
 
     _set_stage(
-        upload_id, "distribute", 4,
+        upload_id, "distribute", 3,
         {"nodes": nodes, "current_node": "", "nodes_completed": 0},
     )
 
@@ -186,7 +187,7 @@ async def _run_upload_inner(upload_id, file_bytes, file_name, owner_address):
         node_name = NODE_NAMES[idx % len(NODE_NAMES)]
         nodes[node_name] = {"cid": None, "status": "uploading", "ip": NODE_IPS[node_name]}
         _set_stage(
-            upload_id, "distribute", 4,
+            upload_id, "distribute", 3,
             {"nodes": dict(nodes), "current_node": node_name, "nodes_completed": idx},
         )
         cid = await upload_to_node(
@@ -203,19 +204,14 @@ async def _run_upload_inner(upload_id, file_bytes, file_name, owner_address):
             "size": len(share_data),
         })
         _set_stage(
-            upload_id, "distribute", 4,
+            upload_id, "distribute", 3,
             {"nodes": dict(nodes), "current_node": node_name, "nodes_completed": idx + 1},
         )
 
-    _set_stage(upload_id, "anchor", 5, {"nodes": dict(nodes)})
+    _set_stage(upload_id, "anchor", 4, {"nodes": dict(nodes)})
 
     merkle = mock_merkle_root([e["cid"] for e in key_entries])
     tx = mock_tx_hash(upload_id)
-
-    key_index_b64 = {
-        rel: base64.b64encode(data).decode("ascii")
-        for rel, data in index_files.items()
-    }
 
     mime_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
     t_total = round((time.monotonic() - t_start) * 1000)
@@ -228,17 +224,20 @@ async def _run_upload_inner(upload_id, file_bytes, file_name, owner_address):
         "owner_address": owner_address,
         "file_name": file_name,
         "original_size": len(file_bytes),
-        "compressed_size": len(compressed),
         "encrypted_size": len(blob),
-        "blob_hex_prefix": blob[:4].hex().upper(),
         "mime_type": mime_type,
         "mode": "key",
         "threshold_k": min(3, len(key_entries)),
         "total_shares_n": len(key_entries),
         "sha256": file_hash,
         "blob_path": str(blob_path),
+        "essential_share": {
+            "rel_path": essential_rel,
+            "hex_prefix": essential_data[:4].hex().upper() if essential_data else "",
+            "size": len(essential_data),
+        },
         "key_shares": key_entries,
-        "key_index": key_index_b64,
+        "key_index": essential_b64,
         "merkle_root": merkle,
         "tx_hash": tx,
         "thumbnail": thumbnail_b64,
@@ -248,12 +247,12 @@ async def _run_upload_inner(upload_id, file_bytes, file_name, owner_address):
     }
 
     add_manifest(manifest)
-    _add_to_satellite_catalog(manifest, key_index_b64)
+    _add_to_satellite_catalog(manifest, essential_b64)
 
     _upload_status[upload_id] = {
         "stage": "done",
-        "stage_index": 6,
-        "stage_total": 6,
+        "stage_index": 5,
+        "stage_total": 5,
         "nodes": {
             n: {"cid": nodes[n]["cid"], "status": "ok", "ip": NODE_IPS[n]}
             for n in NODE_NAMES

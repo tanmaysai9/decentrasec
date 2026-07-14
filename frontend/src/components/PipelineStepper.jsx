@@ -2,7 +2,6 @@ import useStore from "../store/useStore";
 
 const STAGES = [
   { key: "validate", label: "Validate" },
-  { key: "compress", label: "Compress" },
   { key: "encrypt", label: "Encrypt" },
   { key: "split", label: "Split" },
   { key: "distribute", label: "Distribute" },

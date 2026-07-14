@@ -1,5 +1,4 @@
 import base64
-import gzip
 import time
 from pathlib import Path
 
@@ -35,8 +34,8 @@ async def _reconstruct(manifest):
 
     all_shares = {}
 
-    key_index = manifest.get("key_index", {})
-    for rel_path, b64_data in key_index.items():
+    essential_b64 = manifest.get("key_index", {})
+    for rel_path, b64_data in essential_b64.items():
         all_shares[rel_path] = base64.b64decode(b64_data)
 
     for entry in manifest["key_shares"]:
@@ -52,8 +51,7 @@ async def _reconstruct(manifest):
         raise ValueError(f"Ciphertext blob not found: {blob_path}")
     blob = blob_path.read_bytes()
 
-    compressed = aes_decrypt(blob, key)
-    plaintext = gzip.decompress(compressed)
+    plaintext = aes_decrypt(blob, key)
 
     actual_hash = sha256(plaintext)
     expected_hash = manifest["sha256"]

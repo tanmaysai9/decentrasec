@@ -24,9 +24,9 @@ function EssentialCell({ share }) {
           <span className="font-mono text-lg text-gray-600">0x{share.hex_prefix}</span>
         )}
         <span className="text-sm font-bold text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1 rounded">
-          CIPHERTEXT
+          ESSENTIAL
         </span>
-        <span className="text-base text-amber-500 font-medium">local only</span>
+        <span className="text-base text-amber-500 font-medium">stays with user</span>
       </div>
     </td>
   );
@@ -144,7 +144,7 @@ function ReconstructModal({ image, reconstructedPng, shareDetails, durationMs, s
                       <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
                         <td className="px-5 py-3">
                           <span className={`font-medium text-lg ${s.node === "LOCAL" ? "text-amber-600" : "text-gray-600"}`}>
-                            {i === 0 ? "Ciphertext (local)" : `Key Share ${i}`}
+                            {i === 0 ? "Essential Share (local)" : `Key Share ${i}`}
                           </span>
                         </td>
                         <td className="px-5 py-3">
@@ -333,8 +333,8 @@ export default function SatelliteTable() {
                 </th>
                 <th className="sat-header-cell sat-header-essential" style={{ width: "150px" }}>
                   <div className="flex flex-col items-center">
-                    <span className="text-amber-600 font-semibold text-lg">Ciphertext</span>
-                    <span className="text-base text-amber-500 font-normal normal-case tracking-normal">Encrypted Data — Local</span>
+                    <span className="text-amber-600 font-semibold text-lg">Essential Share</span>
+                    <span className="text-base text-amber-500 font-normal normal-case tracking-normal">index.txt — Local</span>
                   </div>
                 </th>
                 {nodeEntries.map(([name, ip], idx) => (
