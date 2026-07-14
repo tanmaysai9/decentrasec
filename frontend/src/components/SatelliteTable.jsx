@@ -43,20 +43,17 @@ const SENSOR_COLORS = {
 
 function EssentialCell({ share }) {
   if (!share) return <td className="sat-cell sat-cell-essential"><span className="text-gray-300 text-lg">—</span></td>;
-  const seed = (share.hex_prefix || "0000").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
   return (
     <td className="sat-cell sat-cell-essential">
-      <div className="flex items-center gap-2">
-        <NoiseImage seed={seed} size={42} grayscale />
-        <div className="flex flex-col gap-1.5 items-center">
-          <span className="font-mono text-base text-gray-600">0x{share.hex_prefix}</span>
-          <span className="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
-            ESSENTIAL
-          </span>
-          {share.node && (
-            <span className="font-mono text-sm text-amber-500">{share.node}</span>
-          )}
+      <div className="flex flex-col gap-1.5 items-center py-1">
+        <div className="w-10 h-10 rounded-full bg-amber-100 border-2 border-amber-300 flex items-center justify-center text-amber-600 font-bold text-lg shrink-0">
+          ★
         </div>
+        <span className="font-mono text-sm text-gray-500">0x{share.hex_prefix}</span>
+        <span className="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+          ESSENTIAL
+        </span>
+        <span className="font-mono text-xs text-amber-400">LOCAL</span>
       </div>
     </td>
   );
@@ -302,10 +299,10 @@ export default function SatelliteTable() {
     <>
       <style>{`
         .sat-table { border-collapse: collapse; width: max-content; min-width: 100%; }
-        .sat-cell { padding: 12px 14px; border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; vertical-align: middle; white-space: nowrap; }
+        .sat-cell { padding: 12px 14px; border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; vertical-align: middle; white-space: normal; }
         .sat-cell:last-child { border-right: none; }
-        .sat-cell-essential { min-width: 150px; max-width: 150px; }
-        .sat-cell-share { min-width: 220px; max-width: 220px; }
+        .sat-cell-essential { min-width: 120px; max-width: 120px; }
+        .sat-cell-share { min-width: 200px; max-width: 200px; }
         .sat-header { background: #f9fafb; position: sticky; top: 0; z-index: 5; }
         .sat-header-cell { padding: 14px 14px; border-right: 1px solid #e5e7eb; border-bottom: 2px solid #d1d5db; text-align: left; font-size: 17px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; user-select: none; white-space: nowrap; }
         .sat-header-cell:hover { background: #f3f4f6; }
