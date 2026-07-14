@@ -7,6 +7,7 @@ Usage:
     python3 sync_manifests.py
 """
 import json
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 BASE = Path(__file__).parent
@@ -17,9 +18,11 @@ OWNER_ADDRESS = "0xA1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2"
 catalog = json.loads(CATALOG_FILE.read_text())
 images = catalog.get("images", [])
 
+now = datetime.now(timezone.utc)
 manifests = {}
-for img in images:
+for i, img in enumerate(images):
     shares = img.get("shares", [])
+    created = now - timedelta(minutes=i + 1)
     manifests[img["id"]] = {
         "id": img["id"],
         "file_name": f'{img["id"]}.tif',
@@ -36,7 +39,7 @@ for img in images:
         "thumbnail": img.get("thumbnail", ""),
         "upload_duration_ms": None,
         "stage_durations": {},
-        "created_at": img.get("acquisition_date", "") + "T00:00:00Z",
+        "created_at": created.strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 
 MANIFESTS_FILE.write_text(json.dumps(manifests, indent=2), encoding="utf-8")
