@@ -15,21 +15,64 @@ _DMaya_DIR = (
     else os.path.join(_DIR, "DMaya")
 )
 
+# ---------------------------------------------------------------------------
+# base64 wrapper for Linux
+# ---------------------------------------------------------------------------
+# DMaya (Windows .NET) shells out to "base64" with flags like -c (create/encode)
+# that GNU coreutils base64 doesn't understand.  The mono wrapper approach
+# failed because base64.exe is a native Windows binary, not a .NET assembly.
+#
+# Instead we create a bash wrapper that translates Windows flags to GNU base64
+# equivalents.  We install it as both "base64" and "base64.exe" so it is found
+# regardless of how DMaya invokes the subprocess.
+
+_B64_WRAPPER = r'''#!/bin/bash
+# Auto-generated wrapper: translates Windows base64.exe flags to GNU base64
+LOG="/tmp/dmaya_base64.log"
+echo "$(date '+%H:%M:%S') CALL: $@" >> "$LOG"
+
+decode=0
+files=()
+for arg in "$@"; do
+    case "$arg" in
+        -d|--decode) decode=1 ;;
+        -c|-e|--encode) ;;          # encode is GNU default, drop the flag
+        -w*|-*) ;;                   # ignore unknown flags
+        *) files+=("$arg") ;;
+    esac
+done
+
+if [ $decode -eq 1 ]; then
+    op="-d"
+else
+    op="-w0"
+fi
+
+if [ ${#files[@]} -eq 0 ]; then
+    /usr/bin/base64 $op
+elif [ ${#files[@]} -eq 1 ]; then
+    /usr/bin/base64 $op "${files[0]}"
+elif [ ${#files[@]} -eq 2 ]; then
+    /usr/bin/base64 $op "${files[0]}" > "${files[1]}"
+else
+    echo "  ERROR: unexpected files: ${files[@]}" >> "$LOG"
+    exit 1
+fi
+rc=$?
+echo "  rc=$rc decode=$decode nfiles=${#files[@]}" >> "$LOG"
+exit $rc
+'''
+
 
 def _ensure_base64_wrapper():
-    """On Linux, DMaya calls 'base64 -c' but system base64 doesn't support -c.
-    Create a wrapper script that runs the bundled base64.exe via mono."""
+    """Install GNU-base64 wrappers for both 'base64' and 'base64.exe'."""
     if not _USE_MONO:
         return
-    wrapper = os.path.join(_DMaya_DIR, "base64")
-    b64_exe = os.path.join(_DMaya_DIR, "base64.exe")
-    if not os.path.isfile(b64_exe):
-        return
-    if not os.path.isfile(wrapper):
-        with open(wrapper, "w") as f:
-            f.write("#!/bin/bash\n")
-            f.write(f'exec mono "{b64_exe}" "$@"\n')
-        os.chmod(wrapper, 0o755)
+    for name in ("base64", "base64.exe"):
+        path = os.path.join(_DMaya_DIR, name)
+        with open(path, "w", newline="\n") as f:
+            f.write(_B64_WRAPPER)
+        os.chmod(path, 0o755)
 
 
 _ensure_base64_wrapper()
@@ -47,6 +90,7 @@ def _find_binary(name):
 
 
 def _env_with_dmaya():
+    """Prepend DMaya dirs to PATH so our base64 wrapper is found first."""
     env = os.environ.copy()
     paths = [_DMaya_DIR, "."]
     env["PATH"] = os.pathsep.join(paths) + os.pathsep + env.get("PATH", "")
@@ -54,16 +98,16 @@ def _env_with_dmaya():
 
 
 def _copy_runtime(src_dir, dest_dir):
+    """Copy DMaya runtime files into *dest_dir*, ensuring wrappers are exec."""
     for fname in os.listdir(src_dir):
         src = os.path.join(src_dir, fname)
         if os.path.isfile(src):
             shutil.copy2(src, os.path.join(dest_dir, fname))
     if _USE_MONO:
-        wrapper_src = os.path.join(src_dir, "base64")
-        wrapper_dst = os.path.join(dest_dir, "base64")
-        if os.path.isfile(wrapper_src):
-            shutil.copy2(wrapper_src, wrapper_dst)
-            os.chmod(wrapper_dst, 0o755)
+        for name in ("base64", "base64.exe"):
+            dst = os.path.join(dest_dir, name)
+            if os.path.isfile(dst):
+                os.chmod(dst, 0o755)
 
 
 def encrypt(data: bytes, file_name: str) -> dict:
@@ -120,6 +164,19 @@ def encrypt(data: bytes, file_name: str) -> dict:
                 else:
                     shares[rel] = content
 
+        # ---- validation ----
+        if len(shares) < 3:
+            stderr = result.stderr.decode(errors="replace")
+            stdout = result.stdout.decode(errors="replace")
+            raise RuntimeError(
+                f"DMaya encrypt produced only {len(shares)} file(s) — "
+                f"expected 5+. The base64 wrapper may not be working.\n"
+                f"Files: {sorted(shares.keys())}\n"
+                f"stdout: {stdout[:500]}\n"
+                f"stderr: {stderr[:500]}\n"
+                f"Check /tmp/dmaya_base64.log for base64 call trace."
+            )
+
         return {"shares": shares, "metadata": metadata}
 
 
@@ -160,4 +217,17 @@ def decrypt(shares: dict, file_name: str) -> bytes:
             )
 
         with open(output_path, "rb") as f:
-            return f.read()
+            data = f.read()
+
+        if len(data) == 0:
+            stderr = result.stderr.decode(errors="replace")
+            stdout = result.stdout.decode(errors="replace")
+            raise RuntimeError(
+                f"DMaya decrypt produced 0 bytes.\n"
+                f"Shares provided: {len(shares)} ({sorted(shares.keys())})\n"
+                f"stdout: {stdout[:500]}\n"
+                f"stderr: {stderr[:500]}\n"
+                f"Check /tmp/dmaya_base64.log for base64 call trace."
+            )
+
+        return data
