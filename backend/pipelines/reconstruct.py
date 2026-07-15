@@ -1,9 +1,11 @@
 import base64
+import os
+import tempfile
 import time
 from pathlib import Path
 
-from crypto.aes import decrypt as aes_decrypt
-from crypto.hash import sha256
+from crypto.aes import decrypt as aes_decrypt, decrypt_stream
+from crypto.hash import sha256, sha256_file
 from crypto import dmaya as dmaya_mod
 from ipfs.gateway import fetch_bytes
 from ipfs.node import fetch_from_node
@@ -57,13 +59,26 @@ async def _reconstruct(manifest):
     blob_path = Path(manifest["blob_path"])
     if not blob_path.exists():
         raise ValueError(f"Ciphertext blob not found: {blob_path}")
-    blob = blob_path.read_bytes()
 
-    plaintext = aes_decrypt(blob, key)
+    tmp_path = tempfile.mktemp(suffix="_reconstructed")
 
-    actual_hash = sha256(plaintext)
+    aes_mode = manifest.get("aes_mode", "gcm")
+    if aes_mode == "stream":
+        decrypt_stream(str(blob_path), tmp_path, key)
+        actual_hash = sha256_file(tmp_path)
+    else:
+        blob = blob_path.read_bytes()
+        plaintext = aes_decrypt(blob, key)
+        with open(tmp_path, "wb") as f:
+            f.write(plaintext)
+        actual_hash = sha256(plaintext)
+
     expected_hash = manifest["sha256"]
     if actual_hash != expected_hash:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
         raise ValueError(
             f"Integrity check failed: expected {expected_hash}, got {actual_hash}"
         )
@@ -72,7 +87,7 @@ async def _reconstruct(manifest):
     duration_ms = round((time.monotonic() - t_start) * 1000)
 
     return {
-        "data": plaintext,
+        "data_path": tmp_path,
         "file_name": manifest["file_name"],
         "mime_type": manifest["mime_type"],
         "merkle_root": manifest.get("merkle_root", ""),

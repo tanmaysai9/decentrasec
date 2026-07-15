@@ -90,11 +90,18 @@ async def reconstruct(img_id: str):
         logger.error("Reconstruct failed for %s: %s\n%s", img_id, e, traceback.format_exc())
         raise HTTPException(502, f"Reconstruct error: {e}")
 
-    data = result["data"]
+    import os
+    import hashlib
+
+    data_path = result.get("data_path")
+
     from PIL import Image
+    Image.MAX_IMAGE_PIXELS = None
     try:
-        Image.MAX_IMAGE_PIXELS = None
-        img = Image.open(io.BytesIO(data))
+        if data_path:
+            img = Image.open(data_path)
+        else:
+            img = Image.open(io.BytesIO(result["data"]))
         if img.mode not in ("RGB", "RGBA", "L"):
             img = img.convert("RGB")
         img.thumbnail((512, 512))
@@ -102,10 +109,24 @@ async def reconstruct(img_id: str):
         img.save(buf, format="PNG")
         png_bytes = buf.getvalue()
     except Exception:
-        png_bytes = data
+        if data_path:
+            with open(data_path, "rb") as f:
+                png_bytes = f.read()
+        else:
+            png_bytes = result["data"]
 
-    import hashlib
-    integrity = hashlib.sha256(data).hexdigest()[:16]
+    if data_path:
+        h = hashlib.sha256()
+        with open(data_path, "rb") as f:
+            for chunk in iter(lambda: f.read(64 * 1024 * 1024), b""):
+                h.update(chunk)
+        integrity = h.hexdigest()[:16]
+        try:
+            os.unlink(data_path)
+        except Exception:
+            pass
+    else:
+        integrity = hashlib.sha256(result["data"]).hexdigest()[:16]
 
     essential = result.get("essential_share", {})
     all_shares = [{
@@ -115,9 +136,6 @@ async def reconstruct(img_id: str):
         "node_ip": "—",
         "cid": "—",
     }] + result.get("shares", [])
-
-    import hashlib
-    integrity = hashlib.sha256(data).hexdigest()[:16]
 
     return {
         "image": base64.b64encode(png_bytes).decode("ascii"),

@@ -2,6 +2,7 @@ import base64
 import io
 import json
 import mimetypes
+import os
 import time
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -9,8 +10,8 @@ from uuid import uuid4
 from PIL import Image
 
 from config import NODE_NAMES, NODE_IPS, MAX_FILE_SIZE_MB, ENCRYPTED_DATA_DIR
-from crypto.aes import generate_key, encrypt as aes_encrypt
-from crypto.hash import sha256, mock_merkle_root, mock_tx_hash
+from crypto.aes import generate_key, encrypt_stream
+from crypto.hash import sha256_file, mock_merkle_root, mock_tx_hash
 from crypto import dmaya as dmaya_mod
 from ipfs.node import upload_to_node
 from store import add_manifest
@@ -36,11 +37,11 @@ def _classify(all_shares):
     return essential, shares
 
 
-def _generate_thumbnail(file_bytes, file_name, size=256):
+def _generate_thumbnail(file_path, file_name, size=256):
     try:
         ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
         if ext in ("tif", "tiff", "png", "jpg", "jpeg", "bmp", "webp", "gif"):
-            img = Image.open(io.BytesIO(file_bytes))
+            img = Image.open(file_path)
             if img.mode not in ("RGB", "RGBA", "L"):
                 img = img.convert("RGB")
         else:
@@ -138,6 +139,7 @@ def _add_to_satellite_catalog(manifest, essential_b64, key_share_entries):
             "key_index": essential_b64,
             "blob_path": manifest["blob_path"],
             "encrypted_size": manifest["encrypted_size"],
+            "aes_mode": manifest.get("aes_mode", "stream"),
             "nlss_ready": True,
             "ipfs_ready": True,
             "source": "upload",
@@ -153,36 +155,42 @@ def _add_to_satellite_catalog(manifest, essential_b64, key_share_entries):
         logging.getLogger("upload").error("Catalog write failed: %s", e, exc_info=True)
 
 
-async def run_upload(upload_id, file_bytes, file_name, owner_address):
+async def run_upload(upload_id, file_path, file_name, owner_address):
     try:
-        await _run_upload_inner(upload_id, file_bytes, file_name, owner_address)
+        await _run_upload_inner(upload_id, file_path, file_name, owner_address)
     except Exception as e:
         entry = _upload_status.get(upload_id, {})
         entry["stage"] = "error"
         entry["error"] = str(e)
         _upload_status[upload_id] = entry
+    finally:
+        try:
+            os.unlink(file_path)
+        except Exception:
+            pass
 
 
-async def _run_upload_inner(upload_id, file_bytes, file_name, owner_address):
+async def _run_upload_inner(upload_id, file_path, file_name, owner_address):
     t_start = time.monotonic()
     nodes = {n: {"cid": None, "status": "pending"} for n in NODE_NAMES}
     _set_stage(upload_id, "validate", 0, {"nodes": nodes})
 
-    if len(file_bytes) == 0:
+    file_size = os.path.getsize(file_path)
+    if file_size == 0:
         raise ValueError("Empty file.")
-    if len(file_bytes) > MAX_FILE_SIZE_MB * 1024 * 1024:
+    if file_size > MAX_FILE_SIZE_MB * 1024 * 1024:
         raise ValueError(f"File exceeds {MAX_FILE_SIZE_MB}MB limit.")
 
     _set_stage(upload_id, "encrypt", 1, {"nodes": nodes})
-    file_hash = sha256(file_bytes)
-    thumbnail_b64 = _generate_thumbnail(file_bytes, file_name)
+    file_hash = sha256_file(file_path)
+    thumbnail_b64 = _generate_thumbnail(file_path, file_name)
 
     key = generate_key()
-    blob = aes_encrypt(file_bytes, key)
 
     ENCRYPTED_DATA_DIR.mkdir(parents=True, exist_ok=True)
     blob_path = ENCRYPTED_DATA_DIR / f"{upload_id}.bin"
-    blob_path.write_bytes(blob)
+    encrypt_stream(file_path, str(blob_path), key)
+    encrypted_size = blob_path.stat().st_size
 
     _set_stage(upload_id, "split", 2, {"nodes": nodes})
     all_shares = dmaya_mod.encrypt(key, KEY_FILE)["shares"]
@@ -240,10 +248,11 @@ async def _run_upload_inner(upload_id, file_bytes, file_name, owner_address):
         "id": upload_id,
         "owner_address": owner_address,
         "file_name": file_name,
-        "original_size": len(file_bytes),
-        "encrypted_size": len(blob),
+        "original_size": file_size,
+        "encrypted_size": encrypted_size,
         "mime_type": mime_type,
         "mode": "key",
+        "aes_mode": "stream",
         "threshold_k": min(3, len(key_entries)),
         "total_shares_n": len(key_entries),
         "sha256": file_hash,

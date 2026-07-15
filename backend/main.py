@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.background import BackgroundTask
 from PIL import Image
 
 Image.MAX_IMAGE_PIXELS = None
@@ -48,6 +49,13 @@ async def _get_address(request: Request) -> str:
     if not payload:
         raise HTTPException(401, "Invalid or expired token")
     return payload["sub"]
+
+
+def _cleanup_temp(path: str):
+    try:
+        os.unlink(path)
+    except Exception:
+        pass
 
 
 @app.get("/health")
@@ -93,15 +101,22 @@ async def upload(
     address: str = Depends(_get_address),
     file: UploadFile = File(...),
 ):
-    file_bytes = await file.read()
-    upload_id = str(uuid4())
-
     import asyncio
+    import tempfile
 
+    tmp_path = tempfile.mktemp(suffix="_upload")
+    with open(tmp_path, "wb") as f:
+        while True:
+            chunk = await file.read(64 * 1024 * 1024)
+            if not chunk:
+                break
+            f.write(chunk)
+
+    upload_id = str(uuid4())
     asyncio.create_task(
         run_upload(
             upload_id,
-            file_bytes,
+            tmp_path,
             file.filename or "unknown",
             address,
         )
@@ -168,8 +183,8 @@ async def reconstruct(manifest_id: str, address: str = Depends(_get_address)):
         logging.getLogger("reconstruct").error("Reconstruct error for %s: %s", manifest_id, e, exc_info=True)
         raise HTTPException(502, f"Reconstruction failed: {e}")
 
-    return StreamingResponse(
-        BytesIO(result["data"]),
+    return FileResponse(
+        result["data_path"],
         media_type=result["mime_type"],
         headers={
             "Content-Disposition": f'attachment; filename="{result["file_name"]}"',
@@ -178,6 +193,7 @@ async def reconstruct(manifest_id: str, address: str = Depends(_get_address)):
             "X-Shares-Used": result["shares_used"],
             "X-Reconstruct-Duration-Ms": str(result["reconstruct_duration_ms"]),
         },
+        background=BackgroundTask(lambda p=result["data_path"]: _cleanup_temp(p)),
     )
 
 

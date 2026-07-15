@@ -1,6 +1,8 @@
 import base64
 import io
 import json
+import os
+import tempfile
 import time
 import sys
 from pathlib import Path
@@ -39,7 +41,9 @@ async def reconstruct_image(img_id):
     blob_path = Path(entry["blob_path"])
     if not blob_path.exists():
         raise ValueError(f"Ciphertext blob not found: {blob_path}")
-    blob = blob_path.read_bytes()
+    aes_mode = entry.get("aes_mode", "gcm")
+    if aes_mode != "stream":
+        blob = blob_path.read_bytes()
     t_blob = round((time.monotonic() - t0) * 1000)
 
     essential_files = {
@@ -62,25 +66,53 @@ async def reconstruct_image(img_id):
     t_ipfs_get = round((time.monotonic() - t1) * 1000)
 
     t2 = time.monotonic()
-    raw_bytes = keymode.decrypt_image(blob, essential_files, key_shares_fetched)
-    t_decrypt = round((time.monotonic() - t2) * 1000)
+    if aes_mode == "stream":
+        tmp_path = tempfile.mktemp(suffix="_sat_dec")
+        keymode.decrypt_image_stream(
+            str(blob_path), tmp_path, essential_files, key_shares_fetched
+        )
+        t_decrypt = round((time.monotonic() - t2) * 1000)
 
-    duration_ms = round((time.monotonic() - t0) * 1000)
-    n_ipfs = len(entry.get("shares", []))
+        duration_ms = round((time.monotonic() - t0) * 1000)
+        n_ipfs = len(entry.get("shares", []))
 
-    return {
-        "data": raw_bytes,
-        "file_name": f"{img_id}.tif",
-        "mime_type": "image/tiff",
-        "shares_used": f"{n_ipfs}/{n_ipfs}",
-        "reconstruct_duration_ms": duration_ms,
-        "metrics": {
-            "read_blob_ms": t_blob,
-            "ipfs_get_ms": t_ipfs_get,
-            "decrypt_ms": t_decrypt,
-            "total_ms": duration_ms,
-        },
-        "essential_share": entry.get("essential_share", {}),
-        "shares": entry.get("shares", []),
-        "image": entry,
-    }
+        return {
+            "data_path": tmp_path,
+            "file_name": f"{img_id}.tif",
+            "mime_type": "image/tiff",
+            "shares_used": f"{n_ipfs}/{n_ipfs}",
+            "reconstruct_duration_ms": duration_ms,
+            "metrics": {
+                "read_blob_ms": t_blob,
+                "ipfs_get_ms": t_ipfs_get,
+                "decrypt_ms": t_decrypt,
+                "total_ms": duration_ms,
+            },
+            "essential_share": entry.get("essential_share", {}),
+            "shares": entry.get("shares", []),
+            "image": entry,
+        }
+    else:
+        blob = blob_path.read_bytes()
+        raw_bytes = keymode.decrypt_image(blob, essential_files, key_shares_fetched)
+        t_decrypt = round((time.monotonic() - t2) * 1000)
+
+        duration_ms = round((time.monotonic() - t0) * 1000)
+        n_ipfs = len(entry.get("shares", []))
+
+        return {
+            "data": raw_bytes,
+            "file_name": f"{img_id}.tif",
+            "mime_type": "image/tiff",
+            "shares_used": f"{n_ipfs}/{n_ipfs}",
+            "reconstruct_duration_ms": duration_ms,
+            "metrics": {
+                "read_blob_ms": t_blob,
+                "ipfs_get_ms": t_ipfs_get,
+                "decrypt_ms": t_decrypt,
+                "total_ms": duration_ms,
+            },
+            "essential_share": entry.get("essential_share", {}),
+            "shares": entry.get("shares", []),
+            "image": entry,
+        }

@@ -6,6 +6,7 @@ with DMaya into an essential share (index.txt, stays with user) + key shares
 """
 
 from crypto.aes import generate_key, encrypt as aes_encrypt, decrypt as aes_decrypt
+from crypto.aes import encrypt_stream, decrypt_stream
 from crypto import dmaya as dmaya_mod
 
 KEY_FILE = "key.bin"
@@ -39,7 +40,7 @@ def encrypt_image(raw_bytes):
 
 
 def decrypt_image(blob_bytes, essential_files, key_shares_fetched):
-    """Recover the key, decrypt the blob.
+    """Recover the key, decrypt the blob (legacy in-memory GCM format).
 
     essential_files:    {rel_path: bytes} from the catalog.
     key_shares_fetched: {rel_path: bytes} fetched from IPFS nodes.
@@ -48,3 +49,15 @@ def decrypt_image(blob_bytes, essential_files, key_shares_fetched):
     full.update(key_shares_fetched)
     key = dmaya_mod.decrypt(full, KEY_FILE)
     return aes_decrypt(blob_bytes, key)
+
+
+def decrypt_image_stream(blob_path, out_path, essential_files, key_shares_fetched):
+    """Recover the key, stream-decrypt blob to out_path (streaming AES-GCM).
+
+    essential_files:    {rel_path: bytes} from the catalog.
+    key_shares_fetched: {rel_path: bytes} fetched from IPFS nodes.
+    """
+    full = dict(essential_files)
+    full.update(key_shares_fetched)
+    key = dmaya_mod.decrypt(full, KEY_FILE)
+    decrypt_stream(blob_path, out_path, key)
