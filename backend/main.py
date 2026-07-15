@@ -70,7 +70,11 @@ async def mock_wallet_connect(request: Request):
 
 @app.post("/api/thumbnail")
 async def thumbnail(file: UploadFile = File(...)):
-    chunk = await file.read(10 * 1024 * 1024)
+    ext = (file.filename or "").rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else ""
+    if ext in ("tif", "tiff"):
+        chunk = await file.read(100 * 1024 * 1024)
+    else:
+        chunk = await file.read(10 * 1024 * 1024)
     try:
         img = Image.open(io.BytesIO(chunk))
         if img.mode not in ("RGB", "RGBA", "L"):
