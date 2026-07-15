@@ -178,7 +178,7 @@ async def _run_upload_inner(upload_id, file_path, file_name, owner_address):
     file_size = os.path.getsize(file_path)
     if file_size == 0:
         raise ValueError("Empty file.")
-    if file_size > MAX_FILE_SIZE_MB * 1024 * 1024:
+    if MAX_FILE_SIZE_MB > 0 and file_size > MAX_FILE_SIZE_MB * 1024 * 1024:
         raise ValueError(f"File exceeds {MAX_FILE_SIZE_MB}MB limit.")
 
     _set_stage(upload_id, "encrypt", 1, {"nodes": nodes})
