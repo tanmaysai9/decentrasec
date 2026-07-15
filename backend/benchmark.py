@@ -29,6 +29,7 @@ Image.MAX_IMAGE_PIXELS = None
 sys.path.insert(0, str(Path(__file__).parent))
 
 from crypto.aes import generate_key, encrypt as aes_encrypt, decrypt as aes_decrypt
+from crypto.aes import encrypt_stream, decrypt_stream
 from crypto import dmaya as dmaya_mod
 from crypto.hash import sha256
 from config import NODE_NAMES, NODE_IPS
@@ -64,6 +65,21 @@ def make_test_bytes(size_mb):
     while len(data) < target:
         data += secrets.token_bytes(min(chunk, target - len(data)))
     return data
+
+
+import hashlib as _hashlib
+
+
+def _sha256_file(path, chunk_size=64 * 1024 * 1024):
+    """Compute SHA-256 of a file by streaming (never loads full file into RAM)."""
+    h = _hashlib.sha256()
+    with open(path, "rb") as f:
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def classify(shares):
@@ -110,7 +126,7 @@ async def run_benchmark(sizes, do_ipfs=True):
 
 
 async def run_file_benchmark(file_path, do_ipfs=True):
-    """Benchmark using a real file from disk."""
+    """Benchmark using a real file from disk — streaming mode (low memory)."""
     fp = Path(file_path)
     if not fp.exists():
         print(f"  ERROR: File not found: {fp}")
@@ -124,22 +140,25 @@ async def run_file_benchmark(file_path, do_ipfs=True):
     actual_mb = file_size / (1024 * 1024)
     print(f"\n  File: {fp}")
     print(f"  Size: {actual_mb:.1f} MB ({actual_mb / 1024:.2f} GB)")
+    print(f"  Mode: STREAMING (chunked AES-GCM via OpenSSL + AES-NI, ~64MB RAM)")
 
-    # Read file
-    print(f"  Reading file...", end=" ", flush=True)
-    t0 = time.monotonic()
-    file_data = fp.read_bytes()
-    timers = {"read_file": round((time.monotonic() - t0) * 1000)}
-    print(f"{timers['read_file']}ms")
-
-    result = await _benchmark_one(file_data, timers, actual_mb, do_ipfs, label=fp.name)
+    result = await _benchmark_stream(str(fp), {}, actual_mb, do_ipfs, label=fp.name)
     _print_summary([result])
 
 
-async def _benchmark_one(file_data, timers, actual_mb, do_ipfs, label=""):
-    """Run one file through the full pipeline and return result row."""
+async def _benchmark_one(file_data, timers, actual_mb, do_ipfs, label="", stream_path=None):
+    """Run one file through the full pipeline and return result row.
+
+    If stream_path is set, uses streaming AES (disk-to-disk, ~64MB RAM).
+    Otherwise uses in-memory AES (needs ~2x file size in RAM).
+    """
     row = {"label": label}
-    actual_mb = len(file_data) / (1024 * 1024)
+    use_stream = stream_path is not None
+
+    if use_stream:
+        return await _benchmark_stream(stream_path, timers, actual_mb, do_ipfs, label)
+
+    row = {"label": label}
 
     # SHA-256
     t0 = time.monotonic()
@@ -152,12 +171,9 @@ async def _benchmark_one(file_data, timers, actual_mb, do_ipfs, label=""):
     key = generate_key()
     blob = aes_encrypt(file_data, key)
     timers["aes_encrypt"] = round((time.monotonic() - t0) * 1000)
-    print(f"  AES enc:   {timers['aes_encrypt']}ms ({len(blob) / 1024 / 1024:.1f} MB blob)")
-
     blob_mb = round(len(blob) / (1024 * 1024), 1)
-    is_large = actual_mb > 500
+    print(f"  AES enc:   {timers['aes_encrypt']}ms ({blob_mb:.1f} MB blob)")
 
-    # Free original data — no longer needed (we have file_hash for verification)
     del file_data
 
     # NLSS key split
@@ -167,7 +183,6 @@ async def _benchmark_one(file_data, timers, actual_mb, do_ipfs, label=""):
     timers["nlss_split"] = round((time.monotonic() - t0) * 1000)
     print(f"  NLSS split: {timers['nlss_split']}ms ({len(key_shares)} shares)")
 
-    # IPFS distribute
     if do_ipfs:
         t0 = time.monotonic()
         uploaded = []
@@ -180,7 +195,6 @@ async def _benchmark_one(file_data, timers, actual_mb, do_ipfs, label=""):
         timers["ipfs_distribute"] = round((time.monotonic() - t0) * 1000)
         print(f"  IPFS dist: {timers['ipfs_distribute']}ms")
 
-        # IPFS fetch + reconstruct
         t0 = time.monotonic()
         fetched_shares = {}
         for node, cid, rel_path in uploaded:
@@ -191,7 +205,6 @@ async def _benchmark_one(file_data, timers, actual_mb, do_ipfs, label=""):
     else:
         fetched_shares = {rp: d for rp, d in key_shares}
 
-    # NLSS reconstruct key
     t0 = time.monotonic()
     all_back = dict(essential)
     all_back.update(fetched_shares)
@@ -200,15 +213,11 @@ async def _benchmark_one(file_data, timers, actual_mb, do_ipfs, label=""):
     key_match = recovered_key == key
     print(f"  NLSS recon: {timers['nlss_reconstruct']}ms (key match: {key_match})")
 
-    # AES decrypt
     t0 = time.monotonic()
     recovered_data = aes_decrypt(blob, recovered_key)
     timers["aes_decrypt"] = round((time.monotonic() - t0) * 1000)
-
-    # Free encrypted blob — only need decrypted data for hash
     del blob
 
-    # Integrity via hash comparison
     recovered_hash = sha256(recovered_data)
     data_match = recovered_hash == file_hash
     print(f"  AES dec:   {timers['aes_decrypt']}ms (hash match: {data_match})")
@@ -226,10 +235,102 @@ async def _benchmark_one(file_data, timers, actual_mb, do_ipfs, label=""):
     row["sha256_decrypted"] = recovered_hash
     row["total_ms"] = sum(timers.values())
     row["throughput_mbps"] = round(actual_mb / (row["total_ms"] / 1000), 1)
+    row["mode"] = "in-memory"
 
     print(f"\n  TOTAL: {row['total_ms']}ms ({row['throughput_mbps']} MB/s)")
     print(f"  INTEGRITY: {'PASS' if row['integrity'] else 'FAIL'}")
+    return row
 
+
+async def _benchmark_stream(file_path, timers, actual_mb, do_ipfs, label=""):
+    """Streaming benchmark — disk-to-disk AES, ~64MB peak RAM."""
+    import tempfile
+    row = {"label": label}
+
+    # SHA-256 (streaming)
+    t0 = time.monotonic()
+    file_hash = _sha256_file(file_path)
+    timers["hash"] = round((time.monotonic() - t0) * 1000)
+    print(f"  SHA-256:   {timers['hash']}ms (streaming)")
+
+    # AES encrypt (streaming, hardware-accelerated via cryptography/OpenSSL)
+    key = generate_key()
+    tmpdir = tempfile.mkdtemp(prefix="bench_")
+    enc_path = os.path.join(tmpdir, "encrypted.bin")
+    dec_path = os.path.join(tmpdir, "decrypted.bin")
+
+    t0 = time.monotonic()
+    encrypt_stream(file_path, enc_path, key)
+    timers["aes_encrypt"] = round((time.monotonic() - t0) * 1000)
+    blob_mb = round(os.path.getsize(enc_path) / (1024 * 1024), 1)
+    print(f"  AES enc:   {timers['aes_encrypt']}ms ({blob_mb:.1f} MB blob, streaming+AES-NI)")
+
+    # NLSS key split
+    t0 = time.monotonic()
+    all_shares = dmaya_mod.encrypt(key, "key.bin")["shares"]
+    essential, key_shares = classify(all_shares)
+    timers["nlss_split"] = round((time.monotonic() - t0) * 1000)
+    print(f"  NLSS split: {timers['nlss_split']}ms ({len(key_shares)} shares)")
+
+    if do_ipfs:
+        t0 = time.monotonic()
+        uploaded = []
+        for idx, (rel_path, share_data) in enumerate(key_shares):
+            node = NODE_NAMES[idx % len(NODE_NAMES)]
+            safe_name = rel_path.replace("/", "_")
+            cid = await upload_to_node(node, share_data, f"bench_{safe_name}")
+            uploaded.append((node, cid, rel_path))
+            print(f"    {node}: {cid[:20]}...", flush=True)
+        timers["ipfs_distribute"] = round((time.monotonic() - t0) * 1000)
+        print(f"  IPFS dist: {timers['ipfs_distribute']}ms")
+
+        t0 = time.monotonic()
+        fetched_shares = {}
+        for node, cid, rel_path in uploaded:
+            data = await fetch_from_node(node, cid)
+            fetched_shares[rel_path] = data
+        timers["ipfs_fetch"] = round((time.monotonic() - t0) * 1000)
+        print(f"  IPFS fetch: {timers['ipfs_fetch']}ms")
+    else:
+        fetched_shares = {rp: d for rp, d in key_shares}
+
+    t0 = time.monotonic()
+    all_back = dict(essential)
+    all_back.update(fetched_shares)
+    recovered_key = dmaya_mod.decrypt(all_back, "key.bin")
+    timers["nlss_reconstruct"] = round((time.monotonic() - t0) * 1000)
+    key_match = recovered_key == key
+    print(f"  NLSS recon: {timers['nlss_reconstruct']}ms (key match: {key_match})")
+
+    # AES decrypt (streaming)
+    t0 = time.monotonic()
+    decrypt_stream(enc_path, dec_path, recovered_key)
+    timers["aes_decrypt"] = round((time.monotonic() - t0) * 1000)
+    print(f"  AES dec:   {timers['aes_decrypt']}ms (streaming+AES-NI)")
+
+    # Integrity: compare SHA-256 of decrypted file vs original
+    recovered_hash = _sha256_file(dec_path)
+    data_match = recovered_hash == file_hash
+    print(f"  Original SHA-256:  {file_hash}")
+    print(f"  Decrypted SHA-256: {recovered_hash}")
+
+    # Cleanup temp files
+    import shutil
+    shutil.rmtree(tmpdir, ignore_errors=True)
+
+    row["timers"] = timers
+    row["actual_mb"] = round(actual_mb, 1)
+    row["blob_mb"] = blob_mb
+    row["n_shares"] = len(key_shares)
+    row["integrity"] = key_match and data_match
+    row["sha256_original"] = file_hash
+    row["sha256_decrypted"] = recovered_hash
+    row["total_ms"] = sum(timers.values())
+    row["throughput_mbps"] = round(actual_mb / (row["total_ms"] / 1000), 1)
+    row["mode"] = "streaming"
+
+    print(f"\n  TOTAL: {row['total_ms']}ms ({row['throughput_mbps']} MB/s)")
+    print(f"  INTEGRITY: {'PASS' if row['integrity'] else 'FAIL'}")
     return row
 
 
