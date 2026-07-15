@@ -209,14 +209,20 @@ async def _benchmark_one(file_data, timers, actual_mb, do_ipfs, label=""):
         print(f"  AES dec:   {timers['aes_decrypt']}ms (hash match: {data_match})")
         del recovered_data
     else:
-        data_match = recovered_data == file_data
-        print(f"  AES dec:   {timers['aes_decrypt']}ms (data match: {data_match})")
+        recovered_hash = sha256(recovered_data)
+        data_match = recovered_hash == file_hash
+        print(f"  AES dec:   {timers['aes_decrypt']}ms (hash match: {data_match})")
+
+    print(f"  Original SHA-256:  {file_hash}")
+    print(f"  Decrypted SHA-256: {recovered_hash}")
 
     row["timers"] = timers
     row["actual_mb"] = round(actual_mb, 1)
     row["blob_mb"] = round(len(blob) / (1024 * 1024), 1)
     row["n_shares"] = len(key_shares)
     row["integrity"] = key_match and data_match
+    row["sha256_original"] = file_hash
+    row["sha256_decrypted"] = recovered_hash
     row["total_ms"] = sum(timers.values())
     row["throughput_mbps"] = round(actual_mb / (row["total_ms"] / 1000), 1)
 
