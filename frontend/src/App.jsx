@@ -4,7 +4,7 @@ import Dashboard from "./pages/Dashboard";
 import SatelliteShares from "./pages/SatelliteShares";
 
 function App() {
-  const token = sessionStorage.getItem("decentrasec_token");
+  const token = sessionStorage.getItem("sds_token");
   return (
     <BrowserRouter>
       <Routes>

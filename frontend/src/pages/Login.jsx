@@ -36,8 +36,8 @@ export default function Login() {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">DecentraSec</h1>
-          <p className="mt-2 text-gray-500">Post-Quantum Secure Satellite Imagery Storage</p>
+          <h1 className="text-2xl font-bold text-gray-900">Secure Distributed Storage</h1>
+          <p className="mt-2 text-gray-500">of Satellite Imagery</p>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

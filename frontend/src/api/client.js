@@ -5,7 +5,7 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem("decentrasec_token");
+  const token = sessionStorage.getItem("sds_token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

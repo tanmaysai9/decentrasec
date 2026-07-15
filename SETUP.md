@@ -1,4 +1,4 @@
-# DecentraSec — Setup Guide
+# Secure Distributed Storage of Satellite Imagery — Setup Guide
 
 ## Prerequisites
 

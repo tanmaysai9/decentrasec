@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Benchmark the DecentraSec pipeline with large files.
+"""Benchmark the Secure Distributed Storage pipeline with large files.
 
 Usage:
     cd backend
@@ -82,7 +82,7 @@ async def run_benchmark(sizes, do_ipfs=True):
     results = []
 
     print("=" * 70)
-    print("  DecentraSec Benchmark — Encrypt → NLSS Split → Distribute → Reconstruct")
+    print("  Secure Distributed Storage Benchmark — Encrypt → NLSS Split → Distribute → Reconstruct")
     print("=" * 70)
 
     for size_mb in sizes:
@@ -117,7 +117,7 @@ async def run_file_benchmark(file_path, do_ipfs=True):
         return
 
     print("=" * 70)
-    print(f"  DecentraSec Benchmark — Real File: {fp.name}")
+    print(f"  Secure Distributed Storage Benchmark — Real File: {fp.name}")
     print("=" * 70)
 
     file_size = fp.stat().st_size
@@ -252,7 +252,7 @@ def _print_summary(results):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Benchmark DecentraSec pipeline")
+    parser = argparse.ArgumentParser(description="Benchmark Secure Distributed Storage pipeline")
     parser.add_argument("--sizes", default="1,10,50,100,500",
                         help="Comma-separated file sizes in MB (default: 1,10,50,100,500)")
     parser.add_argument("--file", default=None,

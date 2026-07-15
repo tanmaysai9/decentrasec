@@ -1,4 +1,4 @@
-# DecentraSec — Post-Quantum Secure Satellite Imagery Storage
+# Secure Distributed Storage of Satellite Imagery
 
 A distributed, post-quantum secure file storage system that encrypts satellite
 imagery with **AES-256-GCM** and protects the encryption key with **Non-Linear

@@ -27,7 +27,7 @@ from pipelines.upload import run_upload, get_upload_status
 from pipelines.reconstruct import reconstruct_by_id
 from satellite.routes import router as satellite_router
 
-app = FastAPI(title="DecentraSec", version="0.1.0")
+app = FastAPI(title="Secure Distributed Storage of Satellite Imagery", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
