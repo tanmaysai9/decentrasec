@@ -202,6 +202,8 @@ function ReconstructModal({ image, reconstructedPng, shareDetails, durationMs, s
   );
 }
 
+const RECONSTRUCT_CACHE_KEY = "sds_reconstruct_cache";
+
 export default function SatelliteTable() {
   const [images, setImages] = useState([]);
   const [nodes, setNodes] = useState({});
@@ -213,6 +215,23 @@ export default function SatelliteTable() {
   const [reconstructingId, setReconstructingId] = useState(null);
   const [modal, setModal] = useState(null);
   const [largeThumb, setLargeThumb] = useState(null);
+
+  useEffect(() => {
+    try {
+      const cached = sessionStorage.getItem(RECONSTRUCT_CACHE_KEY);
+      if (cached) {
+        const d = JSON.parse(cached);
+        setModal({
+          image: { id: d.imageId },
+          reconstructedPng: d.reconstructedPng,
+          shareDetails: d.shareDetails || [],
+          durationMs: d.durationMs || "—",
+          sensor: d.sensor || "",
+          season: d.season || "",
+        });
+      }
+    } catch (e) {}
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 300);
@@ -249,14 +268,18 @@ export default function SatelliteTable() {
       const res = await reconstructSatelliteImage(img.id);
       const { image: b64, duration_ms, sensor, season, shares } = res.data;
       const pngUrl = `data:image/png;base64,${b64}`;
-      setModal({
-        image: img,
+      const modalData = {
+        imageId: img.id,
         reconstructedPng: pngUrl,
         shareDetails: shares || [],
         durationMs: duration_ms ? `${duration_ms}ms` : "—",
         sensor: sensor || img.sensor,
         season: season || img.season,
-      });
+      };
+      try {
+        sessionStorage.setItem(RECONSTRUCT_CACHE_KEY, JSON.stringify(modalData));
+      } catch (e) {}
+      setModal({ image: img, ...modalData });
     } catch (e) {
       alert(`Reconstruct failed: ${e.response?.data?.detail || e.message}`);
     } finally {
@@ -439,6 +462,7 @@ export default function SatelliteTable() {
           sensor={modal.sensor}
           season={modal.season}
           onClose={() => {
+            sessionStorage.removeItem(RECONSTRUCT_CACHE_KEY);
             setModal(null);
           }}
         />
