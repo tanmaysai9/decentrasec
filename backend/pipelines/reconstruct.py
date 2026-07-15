@@ -9,7 +9,7 @@ from crypto.hash import sha256, sha256_file
 from crypto import dmaya as dmaya_mod
 from ipfs.gateway import fetch_bytes
 from ipfs.node import fetch_from_node
-from store import get_manifest
+from store import get_manifest, update_manifest
 
 KEY_FILE = "key.bin"
 
@@ -85,6 +85,8 @@ async def _reconstruct(manifest):
 
     shares_used = f"{manifest.get('threshold_k', '?')}/{manifest.get('total_shares_n', '?')}"
     duration_ms = round((time.monotonic() - t_start) * 1000)
+
+    update_manifest(manifest["id"], {"reconstruct_duration_ms": duration_ms})
 
     return {
         "data_path": tmp_path,

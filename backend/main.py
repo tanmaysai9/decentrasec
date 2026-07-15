@@ -157,6 +157,7 @@ async def archive(address: str = Depends(_get_address)):
                 "nodes": nodes,
                 "created_at": m.get("created_at", ""),
                 "upload_duration_ms": m.get("upload_duration_ms"),
+                "reconstruct_duration_ms": m.get("reconstruct_duration_ms"),
                 "stage_durations": m.get("stage_durations", {}),
                 "thumbnail": m.get("thumbnail"),
             }

@@ -136,7 +136,7 @@ export default function ArchiveTable() {
                   {formatDuration(f.upload_duration_ms)}
                 </td>
                 <td className="py-3 pr-4 text-gray-500 whitespace-nowrap text-xs font-mono">
-                  {formatDuration(reconstructDurations[f.id])}
+                  {formatDuration(f.reconstruct_duration_ms ?? reconstructDurations[f.id])}
                 </td>
                 <td className="py-3 pr-4 text-gray-400 whitespace-nowrap">{timeAgo(f.created_at)}</td>
                 <td className="py-3">

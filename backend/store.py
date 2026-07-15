@@ -50,3 +50,10 @@ def delete_manifest(manifest_id: str) -> bool:
         save_manifests(all_data)
         return True
     return False
+
+
+def update_manifest(manifest_id: str, updates: dict):
+    all_data = load_manifests()
+    if manifest_id in all_data:
+        all_data[manifest_id].update(updates)
+        save_manifests(all_data)
