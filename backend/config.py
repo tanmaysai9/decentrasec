@@ -17,7 +17,7 @@ CORS_ORIGINS = [
 MANIFESTS_FILE = os.getenv("MANIFESTS_FILE", "./data/manifests.json")
 ENCRYPTED_DATA_DIR = Path(os.getenv("ENCRYPTED_DATA_DIR", "./data/encrypted"))
 DEMO_DATA_DIR = os.getenv("DEMO_DATA_DIR", "./data/demo-data")
-MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", "10240"))
+MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", "102400"))
 IPFS_UPLOAD_TIMEOUT = int(os.getenv("IPFS_UPLOAD_TIMEOUT", "300"))
 IPFS_FETCH_TIMEOUT = int(os.getenv("IPFS_FETCH_TIMEOUT", "120"))
 
