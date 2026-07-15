@@ -32,9 +32,21 @@ const useStore = create((set) => ({
   reconstructingId: null,
   setReconstructingId: (id) => set({ reconstructingId: id }),
 
-  reconstructDurations: {},
+  reconstructDurations: (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("sds_reconstruct_durations") || "{}");
+    } catch {
+      return {};
+    }
+  })(),
   setReconstructDuration: (id, ms) =>
-    set((s) => ({ reconstructDurations: { ...s.reconstructDurations, [id]: ms } })),
+    set((s) => {
+      const next = { ...s.reconstructDurations, [id]: ms };
+      try {
+        sessionStorage.setItem("sds_reconstruct_durations", JSON.stringify(next));
+      } catch {}
+      return { reconstructDurations: next };
+    }),
 }));
 
 export default useStore;
