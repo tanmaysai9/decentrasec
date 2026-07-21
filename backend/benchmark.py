@@ -334,23 +334,35 @@ async def _benchmark_stream(file_path, timers, actual_mb, do_ipfs, label=""):
     return row
 
 
-def _print_summary(results):
-    print(f"\n{'=' * 70}")
-    print("  SUMMARY")
-    print(f"{'=' * 70}")
-    print(f"  {'Size':>8}  {'AES enc':>8}  {'NLSS':>8}  {'IPFS dist':>10}  {'IPFS fetch':>11}  {'NLSS rec':>9}  {'AES dec':>8}  {'Total':>8}  {'MB/s':>6}  {'OK':>4}")
-    print(f"  {'─'*8}  {'─'*8}  {'─'*8}  {'─'*10}  {'─'*11}  {'─'*9}  {'─'*8}  {'─'*8}  {'─'*6}  {'─'*4}")
-    for r in results:
-        t = r["timers"]
-        ipfs_d = t.get("ipfs_distribute", "—")
-        ipfs_f = t.get("ipfs_fetch", "—")
-        print(f"  {r['actual_mb']:>7.1f}M  {t['aes_encrypt']:>7}ms  {t['nlss_split']:>7}ms  {str(ipfs_d):>9}ms  {str(ipfs_f):>10}ms  {t['nlss_reconstruct']:>8}ms  {t['aes_decrypt']:>7}ms  {r['total_ms']:>7}ms  {r['throughput_mbps']:>5.1f}  {'Y' if r['integrity'] else 'N':>3}")
+def _fmt_ms(v):
+    if v is None or v == "—":
+        return "—"
+    if v < 1000:
+        return f"{v}ms"
+    return f"{v / 1000:.2f}s"
 
-    # Save JSON
+
+def _print_summary(results):
+    print(f"\n{'=' * 100}")
+    print("  SUMMARY")
+    print(f"{'=' * 100}")
+    print(f"  {'FILE NAME':<30}  {'SIZE':>10}  {'NLSS SPLIT':>12}  {'IPFS Upload':>12}  {'IPFS Retrieval':>15}  {'NLSS COMBINE':>13}  {'TOTAL':>10}")
+    print(f"  {'─'*30}  {'─'*10}  {'─'*12}  {'─'*12}  {'─'*15}  {'─'*13}  {'─'*10}")
+    for r in results:
+        t = r.get("timers", {})
+        name = r.get("file_name", f"{r.get('actual_mb', 0):.0f}MB")
+        size = f"{r.get('actual_mb', 0):.1f} MB"
+        nlss_split = _fmt_ms(t.get("nlss_split"))
+        ipfs_up = _fmt_ms(t.get("ipfs_distribute"))
+        ipfs_get = _fmt_ms(t.get("ipfs_fetch"))
+        nlss_rec = _fmt_ms(t.get("nlss_reconstruct"))
+        total = _fmt_ms(r.get("total_ms"))
+        print(f"  {name:<30}  {size:>10}  {nlss_split:>12}  {ipfs_up:>12}  {ipfs_get:>15}  {nlss_rec:>13}  {total:>10}")
+
     out = Path(__file__).parent / "benchmark_results.json"
     out.write_text(json.dumps(results, indent=2), encoding="utf-8")
     print(f"\n  Results saved to {out}")
-    print("=" * 70)
+    print("=" * 100)
 
 
 def main():
