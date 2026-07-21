@@ -358,12 +358,31 @@ def main():
     parser.add_argument("--sizes", default="1,10,50,100,500",
                         help="Comma-separated file sizes in MB (default: 1,10,50,100,500)")
     parser.add_argument("--file", default=None,
-                        help="Path to a real file to benchmark (e.g. data/satellite/satellite_all.zip)")
+                        help="Path to a real file to benchmark")
+    parser.add_argument("--dir", default=None,
+                        help="Benchmark all files in a directory")
     parser.add_argument("--no-ipfs", action="store_true",
                         help="Skip IPFS upload/fetch (encrypt+split only)")
     args = parser.parse_args()
 
-    if args.file:
+    if args.dir:
+        d = Path(args.dir)
+        files = sorted(f for f in d.iterdir() if f.is_file())
+        if not files:
+            print(f"  No files found in {d}")
+            return
+        results = []
+        for fp in files:
+            file_size = fp.stat().st_size
+            actual_mb = file_size / (1024 * 1024)
+            print(f"\n{'─' * 70}")
+            print(f"  {fp.name}  ({actual_mb:.1f} MB)")
+            print(f"{'─' * 70}")
+            result = asyncio.run(_benchmark_stream(str(fp), {}, actual_mb, not args.no_ipfs, label=fp.name))
+            result["file_name"] = fp.name
+            results.append(result)
+        _print_summary(results)
+    elif args.file:
         asyncio.run(run_file_benchmark(args.file, do_ipfs=not args.no_ipfs))
     else:
         sizes = [int(s.strip()) for s in args.sizes.split(",")]
