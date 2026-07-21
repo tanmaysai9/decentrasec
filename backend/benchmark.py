@@ -346,18 +346,20 @@ def _print_summary(results):
     print(f"\n{'=' * 100}")
     print("  SUMMARY")
     print(f"{'=' * 100}")
-    print(f"  {'FILE NAME':<30}  {'SIZE':>10}  {'NLSS SPLIT':>12}  {'IPFS Upload':>12}  {'IPFS Retrieval':>15}  {'NLSS COMBINE':>13}  {'TOTAL':>10}")
-    print(f"  {'─'*30}  {'─'*10}  {'─'*12}  {'─'*12}  {'─'*15}  {'─'*13}  {'─'*10}")
+    print(f"  {'FILE NAME':<26}  {'SIZE':>10}  {'AES ENC':>10}  {'NLSS SPLIT':>12}  {'IPFS Upload':>12}  {'IPFS Retrieval':>15}  {'NLSS COMBINE':>13}  {'AES DEC':>10}  {'TOTAL':>10}")
+    print(f"  {'─'*26}  {'─'*10}  {'─'*10}  {'─'*12}  {'─'*12}  {'─'*15}  {'─'*13}  {'─'*10}  {'─'*10}")
     for r in results:
         t = r.get("timers", {})
         name = r.get("file_name", f"{r.get('actual_mb', 0):.0f}MB")
         size = f"{r.get('actual_mb', 0):.1f} MB"
+        aes_enc = _fmt_ms(t.get("aes_encrypt"))
         nlss_split = _fmt_ms(t.get("nlss_split"))
         ipfs_up = _fmt_ms(t.get("ipfs_distribute"))
         ipfs_get = _fmt_ms(t.get("ipfs_fetch"))
         nlss_rec = _fmt_ms(t.get("nlss_reconstruct"))
+        aes_dec = _fmt_ms(t.get("aes_decrypt"))
         total = _fmt_ms(r.get("total_ms"))
-        print(f"  {name:<30}  {size:>10}  {nlss_split:>12}  {ipfs_up:>12}  {ipfs_get:>15}  {nlss_rec:>13}  {total:>10}")
+        print(f"  {name:<26}  {size:>10}  {aes_enc:>10}  {nlss_split:>12}  {ipfs_up:>12}  {ipfs_get:>15}  {nlss_rec:>13}  {aes_dec:>10}  {total:>10}")
 
     out = Path(__file__).parent / "benchmark_results.json"
     out.write_text(json.dumps(results, indent=2), encoding="utf-8")
